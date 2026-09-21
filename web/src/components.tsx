@@ -76,9 +76,11 @@ export function Modal({
     function key(event: KeyboardEvent) {
       if (event.key === 'Escape') onClose();
       if (event.key === 'Tab') {
-        const items = ref.current?.querySelectorAll<HTMLElement>(
-          'button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href]',
-        );
+        const items = Array.from(
+          ref.current?.querySelectorAll<HTMLElement>(
+            'button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href], summary',
+          ) || [],
+        ).filter((item) => item.getClientRects().length > 0);
         if (!items?.length) return;
         const first = items[0],
           last = items[items.length - 1];
@@ -122,7 +124,6 @@ export function Modal({
       >
         <div className="modal-head">
           <div>
-            <span className="eyebrow">A LITTLE PROMISE</span>
             <h2 id="modal-title">{title}</h2>
             {subtitle && <p>{subtitle}</p>}
           </div>
@@ -159,8 +160,12 @@ export function TaskCard({
         <span className="task-title">{task.title}</span>
         <span className="task-meta">
           {task.mode === 'RACE' ? '双人抢单' : `给${personName(task.assignedTo, bootstrap)}`}
-          <i />
-          {task.dueAt ? `${dateText(task.dueAt)} 截止` : '慢慢来，不限时间'}
+          {task.dueAt && (
+            <>
+              <i />
+              {dateText(task.dueAt)} 截止
+            </>
+          )}
         </span>
       </span>
       <span className="task-card-end">
@@ -181,13 +186,15 @@ export function TaskForm({
   busy,
   onSave,
   partner,
+  scheduled = false,
 }: {
   busy: boolean;
   onSave: Save;
   partner: string;
+  scheduled?: boolean;
 }) {
   const [mode, setMode] = useState('ASSIGNED');
-  const [kind, setKind] = useState('NOW');
+  const [kind, setKind] = useState(scheduled ? 'DAILY' : 'NOW');
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
@@ -208,9 +215,16 @@ export function TaskForm({
     await onSave(body, kind !== 'NOW');
   }
   return (
-    <form className="form-stack" onSubmit={submit}>
+    <form
+      className="form-stack"
+      onSubmit={submit}
+      onInvalidCapture={(event) => {
+        const options = (event.target as HTMLElement).closest('details');
+        if (options) options.open = true;
+      }}
+    >
       <label>
-        小小约定的名字
+        约定名称
         <input
           name="title"
           maxLength={100}
@@ -220,16 +234,7 @@ export function TaskForm({
         />
       </label>
       <label>
-        说说你的期待
-        <textarea
-          name="description"
-          rows={3}
-          maxLength={2000}
-          placeholder="想怎么完成，有什么小要求，都可以写在这里…"
-        />
-      </label>
-      <label>
-        完成后奖励多少积分
+        奖励积分
         <div className="input-icon">
           <Sparkles size={18} />
           <input
@@ -248,86 +253,105 @@ export function TaskForm({
         <div className="choice-grid">
           <button
             type="button"
-            className={`choice ${mode === 'ASSIGNED' ? 'selected' : ''}`}
+            className={`choice choice-compact ${mode === 'ASSIGNED' ? 'selected' : ''}`}
+            aria-pressed={mode === 'ASSIGNED'}
             onClick={() => setMode('ASSIGNED')}
           >
             <Heart size={20} />
             <strong>交给{partner}</strong>
-            <span>专属给对方的小约定</span>
           </button>
           <button
             type="button"
-            className={`choice ${mode === 'RACE' ? 'selected' : ''}`}
+            className={`choice choice-compact ${mode === 'RACE' ? 'selected' : ''}`}
+            aria-pressed={mode === 'RACE'}
             onClick={() => setMode('RACE')}
           >
             <Zap size={20} />
-            <strong>两个人抢单</strong>
-            <span>先领取的人来完成</span>
+            <strong>谁先领谁完成</strong>
           </button>
         </div>
       </fieldset>
-      <div className="form-row">
-        <label>
-          什么时候发布
-          <select name="kind" value={kind} onChange={(event) => setKind(event.target.value)}>
-            <option value="NOW">立即发布</option>
-            <option value="ONCE">定时发布一次</option>
-            <option value="DAILY">每天重复</option>
-            <option value="WEEKLY">每周重复</option>
-          </select>
-        </label>
-        {kind === 'NOW' ? (
+      <details className="form-options" open={scheduled || undefined}>
+        <summary>
+          更多设置 <span>说明、时间与重复</span>
+        </summary>
+        <div className="form-stack form-options-body">
           <label>
-            截止时间（可选）
-            <input type="datetime-local" name="dueAt" />
-          </label>
-        ) : (
-          <label>
-            发布后几小时截止
-            <input
-              type="number"
-              name="durationHours"
-              defaultValue={24}
-              min={1}
-              max={168}
-              required
+            补充说明（可选）
+            <textarea
+              name="description"
+              rows={2}
+              maxLength={2000}
+              placeholder="有什么需要对方知道的？"
             />
           </label>
-        )}
-      </div>
-      {kind === 'ONCE' && (
-        <label>
-          计划发布时间
-          <input type="datetime-local" name="runAt" required />
-        </label>
-      )}
-      {(kind === 'DAILY' || kind === 'WEEKLY') && (
-        <div className="form-row">
-          {kind === 'WEEKLY' && (
+          <div className="form-row">
             <label>
-              每周
-              <select name="weekday" defaultValue={1}>
-                {['一', '二', '三', '四', '五', '六', '日'].map((day, index) => (
-                  <option key={day} value={index + 1}>
-                    星期{day}
-                  </option>
-                ))}
+              发布时间
+              <select name="kind" value={kind} onChange={(event) => setKind(event.target.value)}>
+                <option value="NOW">立即发布</option>
+                <option value="ONCE">定时发布一次</option>
+                <option value="DAILY">每天重复</option>
+                <option value="WEEKLY">每周重复</option>
               </select>
             </label>
+            {kind === 'NOW' ? (
+              <label>
+                截止时间（可选）
+                <input type="datetime-local" name="dueAt" />
+              </label>
+            ) : (
+              <label>
+                发布后几小时截止
+                <input
+                  type="number"
+                  name="durationHours"
+                  defaultValue={24}
+                  min={1}
+                  max={168}
+                  required
+                />
+              </label>
+            )}
+          </div>
+          {kind === 'ONCE' && (
+            <label>
+              计划发布时间
+              <input type="datetime-local" name="runAt" required />
+            </label>
           )}
-          <label>
-            发布时间
-            <input type="time" name="time" defaultValue="09:00" required />
-          </label>
+          {(kind === 'DAILY' || kind === 'WEEKLY') && (
+            <div className="form-row">
+              {kind === 'WEEKLY' && (
+                <label>
+                  每周
+                  <select name="weekday" defaultValue={1}>
+                    {['一', '二', '三', '四', '五', '六', '日'].map((day, index) => (
+                      <option key={day} value={index + 1}>
+                        星期{day}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+              <label>
+                发布时间
+                <input type="time" name="time" defaultValue="09:00" required />
+              </label>
+            </div>
+          )}
+          <div className="form-hint">
+            <Clock3 size={15} />
+            <span>时间均为北京时间。</span>
+          </div>
         </div>
-      )}
+      </details>
       <div className="form-hint">
-        <Clock3 size={15} />
-        <span>所有时间均为北京时间。完成后由另一人验收，积分才会到账。</span>
+        <span>完成后由对方确认，积分到账。</span>
       </div>
       <Button type="submit" busy={busy} className="primary wide">
         <Plus size={18} />
-        {kind === 'NOW' ? '发布这个约定' : '创建定时约定'}
+        {kind === 'NOW' ? '发布约定' : '创建定时约定'}
       </Button>
     </form>
   );
@@ -343,6 +367,7 @@ export function ProductForm({
   onSave: Save;
 }) {
   const [emoji, setEmoji] = useState(product?.emoji || '🎁');
+  const icons = ['🎁', '🍳', '☕', '🎬', '💐', '🧋', '💆', '🏕️', '🧸', '🍰', '💌', '✨'];
   const initial = useRef(product).current;
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -362,24 +387,14 @@ export function ProductForm({
     await onSave(body);
   }
   return (
-    <form className="form-stack" onSubmit={submit}>
-      <fieldset>
-        <legend>选一个心愿图标</legend>
-        <div className="emoji-picker">
-          {['🎁', '🍳', '☕', '🎬', '💐', '🧋', '💆', '🏕️', '🧸', '🍰', '💌', '✨'].map((item) => (
-            <button
-              type="button"
-              key={item}
-              className={emoji === item ? 'selected' : ''}
-              aria-label={`使用 ${item} 图标`}
-              aria-pressed={emoji === item}
-              onClick={() => setEmoji(item)}
-            >
-              {item}
-            </button>
-          ))}
-        </div>
-      </fieldset>
+    <form
+      className="form-stack"
+      onSubmit={submit}
+      onInvalidCapture={(event) => {
+        const options = (event.target as HTMLElement).closest('details');
+        if (options) options.open = true;
+      }}
+    >
       <label>
         心愿名称
         <input
@@ -388,16 +403,6 @@ export function ProductForm({
           maxLength={100}
           placeholder="比如，一次不用做攻略的约会"
           required
-        />
-      </label>
-      <label>
-        这份心意包含什么
-        <textarea
-          name="description"
-          defaultValue={product?.description}
-          rows={3}
-          maxLength={2000}
-          placeholder="写清楚兑换后会收到什么，还有兑现的小约定…"
         />
       </label>
       <div className="form-row">
@@ -413,26 +418,58 @@ export function ProductForm({
             required
           />
         </label>
-        <label>
-          可兑换份数
-          <input
-            type="number"
-            name="stock"
-            defaultValue={product?.stock ?? 1}
-            min={0}
-            max={Math.max(100000, product?.stock ?? 0)}
-            step={1}
-            required
-          />
+        <label className="wish-icon-field">
+          图标
+          <select
+            aria-label="心愿图标"
+            value={emoji}
+            onChange={(event) => setEmoji(event.target.value)}
+          >
+            {!icons.includes(emoji) && <option value={emoji}>{emoji}</option>}
+            {icons.map((item) => (
+              <option key={item} value={item}>
+                {item}
+              </option>
+            ))}
+          </select>
         </label>
       </div>
+      <details className="form-options">
+        <summary>
+          更多设置 <span>说明与可兑换份数</span>
+        </summary>
+        <div className="form-stack form-options-body">
+          <label>
+            补充说明（可选）
+            <textarea
+              name="description"
+              defaultValue={product?.description}
+              rows={2}
+              maxLength={2000}
+              placeholder="兑换后会收到什么？"
+            />
+          </label>
+          <label>
+            可兑换份数
+            <input
+              type="number"
+              name="stock"
+              defaultValue={product?.stock ?? 1}
+              min={0}
+              max={Math.max(100000, product?.stock ?? 0)}
+              step={1}
+              required
+            />
+          </label>
+        </div>
+      </details>
       <div className="form-hint">
         <Gift size={16} />
-        <span>两个人都能兑换，包括自己上架的心愿。兑换时扣除兑换人的积分，由另一半兑现。</span>
+        <span>两个人都能兑换，由对方兑现。</span>
       </div>
       <Button type="submit" className="primary wide" busy={busy}>
         {product ? <Check size={18} /> : <Plus size={18} />}
-        {product ? '保存这份心意' : '上架心愿'}
+        {product ? '保存修改' : '添加心愿'}
       </Button>
     </form>
   );

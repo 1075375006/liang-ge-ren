@@ -1,4 +1,14 @@
-export type Page = 'home' | 'tasks' | 'shop' | 'points' | 'settings';
+export type Page =
+  | 'tasks'
+  | 'shop'
+  | 'settings'
+  | 'points'
+  | 'orders'
+  | 'history'
+  | 'schedules'
+  | 'notifications'
+  | 'account'
+  | 'mail';
 export type User = {
   id: string;
   name: string;

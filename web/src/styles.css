@@ -4321,3 +4321,806 @@ main {
     scroll-behavior: auto !important;
   }
 }
+
+/* Three primary destinations, with secondary tools in “我们”. */
+.compact-app {
+  --muted: #807278;
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  background: #faf8f7;
+  min-height: 100dvh;
+}
+.compact-app main {
+  max-width: 1060px;
+  padding-top: 28px;
+  padding-bottom: 36px;
+}
+.compact-app .topbar {
+  height: 68px;
+}
+.compact-app .sidebar-caption {
+  font-size: 12px;
+  margin-bottom: 28px;
+}
+.compact-app .nav-item {
+  font-size: 15px;
+  min-height: 48px;
+}
+.compact-app .page-heading {
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 22px;
+  flex-wrap: nowrap;
+}
+.compact-app .page-heading h1 {
+  margin: 0 0 4px;
+  font-size: 30px;
+  line-height: 1.25;
+  letter-spacing: -0.6px;
+}
+.compact-app .page-heading p {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.compact-app .page-heading > .button {
+  margin: 0;
+}
+.compact-app button,
+.compact-app .button,
+.compact-app .text-link {
+  min-height: 44px;
+}
+.compact-app .button {
+  font-size: 14px;
+  padding: 10px 15px;
+  border-radius: 12px;
+}
+.compact-app .button.small {
+  padding: 8px 13px;
+  font-size: 13px;
+}
+.compact-app .icon-button,
+.compact-app .notification-button {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+}
+.compact-app .notification-button > span {
+  right: 10px;
+  top: 8px;
+}
+.compact-app .panel {
+  box-shadow: none;
+  border-radius: 16px;
+}
+.compact-app .section-heading {
+  padding: 18px 20px;
+}
+.compact-app .section-heading h2 {
+  font-size: 16px;
+}
+.compact-app .toolbar {
+  padding: 12px 16px;
+  gap: 10px;
+}
+.compact-app .toolbar .tabs {
+  width: auto;
+  flex: 1;
+  flex-wrap: nowrap;
+  justify-content: flex-start;
+  gap: 3px;
+  padding: 3px;
+  background: #f6f2f2;
+  border-radius: 12px;
+}
+.compact-app .tabs button {
+  min-height: 44px;
+  padding: 8px 16px;
+  font-size: 14px;
+  color: var(--muted);
+}
+.compact-app .toolbar .tabs > button {
+  justify-content: center;
+  flex: 1;
+}
+.compact-app .toolbar .tabs > button.active {
+  background: #fff;
+  color: var(--rose-dark);
+  box-shadow: 0 1px 4px #48343a0a;
+}
+.compact-app .search-field {
+  max-width: none;
+  width: 100%;
+  flex-basis: 100%;
+  background: #fff;
+}
+.compact-app .search-field input {
+  min-height: 44px;
+  font-size: 16px;
+}
+.compact-app .full-task-list {
+  padding: 0 20px;
+}
+.compact-app .full-task-list .task-card {
+  min-height: 84px;
+  padding: 15px 0;
+  gap: 12px;
+}
+.compact-app .full-task-list .task-title {
+  font-size: 15px;
+  font-weight: 600;
+}
+.compact-app .full-task-list .task-meta {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.5;
+  margin-top: 5px;
+  max-width: none;
+  gap: 5px;
+}
+.compact-app .full-task-list .task-symbol {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+}
+.compact-app .full-task-list .task-card-end {
+  gap: 18px;
+  margin-right: 0;
+}
+.compact-app .full-task-list .points-pill {
+  font-size: 14px;
+}
+.compact-app .status,
+.compact-app .full-task-list .status {
+  font-size: 12px;
+  padding: 2px 7px;
+}
+.compact-app .list-more {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 52px;
+  border-top: 1px solid var(--line);
+  color: var(--rose);
+  font-size: 14px;
+}
+.compact-app .list-more:hover {
+  background: #fdf8fa;
+}
+.compact-app .back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: -8px 0 8px -8px;
+  padding: 8px;
+  color: var(--rose);
+  font-size: 14px;
+}
+.compact-app .wish-balance,
+.compact-app .action-reminder {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 16px;
+  margin-bottom: 14px;
+  border-radius: 12px;
+  font-size: 14px;
+  text-align: left;
+}
+.compact-app .wish-balance {
+  background: #f6ecef;
+  color: #8c5365;
+}
+.compact-app .wish-balance > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+.compact-app .wish-balance strong {
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+}
+.compact-app .wish-balance > svg:last-child,
+.compact-app .action-reminder > svg:last-child {
+  margin-left: auto;
+}
+.compact-app .action-reminder {
+  color: #87653d;
+  background: #faf1e4;
+}
+.compact-app .filter-line {
+  margin: 0 0 12px;
+  gap: 22px;
+}
+.compact-app .filter-line button {
+  padding: 8px 2px;
+  font-size: 14px;
+}
+.compact-wishes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.wish-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #fff;
+}
+.wish-symbol {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+  border-radius: 14px;
+  background: #faf2ee;
+  font-size: 27px;
+}
+.wish-copy {
+  flex: 1;
+  min-width: 0;
+}
+.wish-copy h3 {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.wish-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 9px;
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.wish-meta strong {
+  color: #a3704e;
+  font-weight: 600;
+}
+.wish-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.wish-actions .icon-button {
+  background: none;
+}
+.us-page {
+  max-width: 680px;
+}
+.us-profile {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 4px 2px 24px;
+  text-align: left;
+}
+.us-profile > div:last-child {
+  min-width: 0;
+}
+.us-profile .paired-avatars {
+  width: 102px;
+  height: 59px;
+  margin-bottom: 0;
+  flex-shrink: 0;
+}
+.us-profile .paired-avatars span {
+  width: 56px;
+  height: 56px;
+  font-size: 19px;
+}
+.us-profile .paired-avatars svg {
+  top: 43px;
+}
+.us-profile h2 {
+  font-size: 21px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.us-profile p {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.us-balance {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 64px;
+  padding: 16px 18px;
+  border: 1px solid #efdfe5;
+  border-radius: 16px;
+  background: #f8edef;
+  text-align: left;
+  color: #96586c;
+  margin-bottom: 20px;
+}
+.us-balance span {
+  flex: 1;
+  font-size: 15px;
+}
+.us-balance strong {
+  font-size: 24px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.us-balance strong small {
+  font-size: 12px;
+  font-weight: 400;
+}
+.settings-menu {
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  margin-bottom: 16px;
+}
+.settings-link {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  width: 100%;
+  min-height: 56px;
+  padding: 12px 17px;
+  text-align: left;
+  font-size: 15px;
+}
+.settings-link + .settings-link {
+  border-top: 1px solid #f2ecea;
+}
+.settings-link > svg:first-child {
+  color: #9a6b79;
+}
+.settings-link > span:not(.menu-value) {
+  flex: 1;
+  min-width: 0;
+}
+.settings-link .menu-value {
+  font-size: 13px;
+  color: var(--muted);
+  max-width: 40%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.settings-link > svg:last-child {
+  color: #b6aaae;
+}
+.settings-link:hover {
+  background: #fdf9fa;
+}
+.balance-summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #f8edef;
+  border: 1px solid #efdfe5;
+  border-radius: 16px;
+  color: #95576a;
+  padding: 20px;
+  margin-bottom: 18px;
+}
+.balance-summary > span {
+  flex: 1;
+}
+.balance-summary small {
+  font-size: 13px;
+  font-weight: 400;
+}
+.balance-summary p,
+.balance-summary span {
+  font-size: 14px;
+}
+.balance-summary strong {
+  font-size: 30px;
+  font-weight: 600;
+  line-height: 1.3;
+  font-variant-numeric: tabular-nums;
+}
+.compact-app .settings-grid {
+  grid-template-columns: 1fr;
+  gap: 18px;
+}
+.compact-app .empty {
+  padding: 38px 22px;
+}
+.compact-app .empty h3 {
+  font-size: 16px;
+}
+.compact-app .empty p {
+  font-size: 13px;
+  color: var(--muted);
+}
+.compact-app .empty .button {
+  font-size: 14px;
+}
+.compact-app
+  :is(
+    .muted,
+    .text-link,
+    .form-hint,
+    .settings-description,
+    .settings-pair,
+    .order-info p,
+    .order-info small,
+    .ledger-row small,
+    .notice-row p,
+    .notice-row small,
+    .schedule-row p,
+    .schedule-row small,
+    .toggle-row small,
+    .wechat-account-status small,
+    .mail-stats span,
+    .mail-template-option-copy small,
+    .mail-template-option-status,
+    .mail-template-preview-heading small,
+    .mail-template-save-status,
+    .mail-template-feedback,
+    .settings-panel > .inline-message.warning,
+    .count-badge
+  ) {
+  font-size: 12px;
+}
+.compact-app
+  :is(
+    .order-title h3,
+    .ledger-row > div > strong,
+    .notice-row h3,
+    .schedule-row strong,
+    .toggle-row strong,
+    .wechat-account-status strong,
+    .mail-template-option-copy strong
+  ) {
+  font-size: 14px;
+}
+.compact-app .ledger-row > div:not(.ledger-value) {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.compact-app .ledger-value {
+  flex-shrink: 0;
+}
+.compact-app .toggle-row {
+  min-height: 44px;
+}
+.compact-app .toggle-row input {
+  height: 44px;
+  width: 44px;
+}
+.compact-app .modal {
+  background: #fff;
+}
+.compact-app .modal-head {
+  margin-bottom: 22px;
+}
+.compact-app .modal-head h2 {
+  margin: 0;
+  font-size: 23px;
+}
+.compact-app .modal-head p {
+  font-size: 13px;
+  color: var(--muted);
+}
+.compact-app .form-stack > label,
+.compact-app .form-row > label,
+.compact-app .form-options-body > label,
+.compact-app legend {
+  font-size: 14px;
+}
+.compact-app input:not([type='checkbox']),
+.compact-app textarea,
+.compact-app select {
+  min-height: 48px;
+  min-width: 0;
+  font-size: 16px;
+  border-radius: 12px;
+}
+.compact-app .form-hint {
+  color: var(--muted);
+  line-height: 1.65;
+}
+.form-options {
+  border-top: 1px solid var(--line);
+}
+.form-options > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 48px;
+  padding: 10px 0;
+  list-style: none;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 14px;
+}
+.form-options > summary::-webkit-details-marker {
+  display: none;
+}
+.form-options > summary > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+}
+.form-options > summary > span::after {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(45deg);
+  flex-shrink: 0;
+}
+.form-options[open] > summary > span::after {
+  transform: rotate(225deg);
+}
+.form-options[open] > summary > svg {
+  transform: rotate(90deg);
+}
+.form-options > summary:focus-visible {
+  outline: 2px solid var(--rose);
+  outline-offset: 3px;
+  border-radius: 8px;
+}
+.form-options-body {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 8px 0;
+}
+.form-options-body > label,
+.wish-icon-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 550;
+}
+.compact-app .choice-grid {
+  gap: 10px;
+}
+.compact-app .choice-compact {
+  min-height: 52px;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  gap: 8px;
+}
+.compact-app .choice-compact svg {
+  margin: 0;
+}
+.compact-app .choice strong {
+  font-size: 14px;
+}
+.compact-app .choice span {
+  font-size: 12px;
+}
+.compact-app .emoji-picker button {
+  width: 44px;
+  height: 44px;
+}
+.compact-app .detail-description {
+  font-size: 15px;
+  color: #78666f;
+}
+.compact-app .detail-info,
+.compact-app .note-card p,
+.compact-app .redeem-preview p,
+.compact-app .redeem-summary {
+  font-size: 13px;
+}
+.compact-app .redeem-preview {
+  padding-bottom: 12px;
+}
+.compact-app .redeem-preview > span {
+  font-size: 48px;
+  margin-bottom: 8px;
+}
+.compact-app .toast {
+  font-size: 14px;
+  padding: 8px 12px;
+}
+.compact-app .toast > button {
+  min-width: 44px;
+  flex-shrink: 0;
+}
+@media (max-width: 1100px) {
+  .compact-wishes {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 760px) {
+  .compact-app main {
+    max-width: 620px;
+    padding: 20px 18px calc(88px + env(safe-area-inset-bottom));
+  }
+  .compact-app .topbar {
+    height: 60px;
+    padding: 0 18px;
+    border-bottom: 0;
+    background: transparent;
+  }
+  .compact-app .mobile-brand .brand strong {
+    font-size: 20px;
+    letter-spacing: 1px;
+  }
+  .compact-app .mobile-brand .brand small {
+    display: none;
+  }
+  .compact-app .page-heading {
+    margin-bottom: 18px;
+    gap: 12px;
+  }
+  .compact-app .page-heading h1 {
+    font-size: 28px;
+  }
+  .compact-app .page-heading > .button {
+    font-size: 14px;
+    min-height: 44px;
+    padding: 10px 14px;
+    gap: 5px;
+  }
+  .compact-app .page-heading > .button > svg {
+    width: 17px;
+  }
+  .compact-app .bottom-nav {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    padding: 5px max(16px, env(safe-area-inset-left)) max(6px, env(safe-area-inset-bottom));
+    background: #fffafbeb;
+    border-top: 1px solid #eadfe4;
+    backdrop-filter: blur(18px);
+  }
+  .compact-app .bottom-nav > button {
+    min-height: 52px;
+    gap: 3px;
+    color: #91838a;
+  }
+  .compact-app .bottom-nav > button > span {
+    font-size: 12px;
+    line-height: 1.4;
+  }
+  .compact-app .bottom-nav > button.active {
+    color: var(--rose);
+    font-weight: 600;
+  }
+  .compact-app .bottom-nav > button.active::before {
+    display: none;
+  }
+  .compact-app .bottom-nav > button > i {
+    top: 4px;
+  }
+  .compact-app .toolbar {
+    padding: 10px;
+    gap: 6px;
+  }
+  .compact-app .toolbar .tabs > button {
+    padding: 7px 6px;
+    font-size: 13px;
+    gap: 4px;
+  }
+  .compact-app .full-task-list {
+    padding: 0 14px;
+  }
+  .compact-app .full-task-list .task-card {
+    padding: 14px 0;
+    min-height: 80px;
+    gap: 10px;
+  }
+  .compact-app .full-task-list .task-symbol {
+    width: 36px;
+    height: 36px;
+  }
+  .compact-app .full-task-list .task-card-end {
+    flex-direction: column;
+    gap: 4px;
+  }
+  .compact-app .full-task-list .task-meta {
+    font-size: 12px;
+  }
+  .compact-app .wish-balance,
+  .compact-app .action-reminder {
+    font-size: 13px;
+  }
+  .wish-row {
+    padding: 14px;
+    gap: 10px;
+  }
+  .wish-symbol {
+    width: 42px;
+    height: 42px;
+    font-size: 25px;
+  }
+  .wish-actions {
+    gap: 2px;
+  }
+  .wish-actions .icon-button {
+    height: 44px;
+  }
+  .us-profile {
+    padding: 0 2px 20px;
+  }
+  .settings-link {
+    min-height: 54px;
+  }
+  .compact-app .settings-panel {
+    padding: 0 18px 18px;
+  }
+  .compact-app .order-actions {
+    padding-left: 0;
+    gap: 8px;
+  }
+  .compact-app .schedule-row {
+    gap: 10px;
+  }
+  .compact-app .modal-backdrop {
+    align-items: flex-end;
+    padding: 0;
+  }
+  .compact-app .modal {
+    width: 100%;
+    max-width: 620px;
+    max-height: calc(100dvh - max(20px, env(safe-area-inset-top)));
+    border-radius: 24px 24px 0 0;
+    padding: 22px 22px calc(22px + env(safe-area-inset-bottom));
+    box-shadow: 0 -10px 60px #48363e20;
+    scroll-padding-bottom: 20px;
+  }
+  .compact-app .modal-head {
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .compact-app .modal-head h2 {
+    font-size: 22px;
+  }
+  .compact-app .form-stack {
+    gap: 18px;
+  }
+  .compact-app .form-row {
+    gap: 12px;
+  }
+  .compact-app .form-options-body .form-row {
+    flex-direction: column;
+  }
+  .compact-app .redeem-summary {
+    flex-wrap: wrap;
+    gap: 8px 16px;
+  }
+}
+@media (max-width: 360px) {
+  .compact-app main {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+  .compact-app .full-task-list .task-symbol {
+    display: none;
+  }
+  .wish-symbol {
+    width: 36px;
+    height: 36px;
+    font-size: 23px;
+  }
+  .compact-app .modal {
+    padding-left: 18px;
+    padding-right: 18px;
+  }
+}

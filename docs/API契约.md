@@ -9,15 +9,15 @@
 - `GET /bootstrap`：`{user: null | {id,name,email,emailVerified,notifyEmail,emailTheme,wechatBound}, space: null | {id,name,inviteCode,inviteExpiresAt}, partner: null | {id,name}, balance, stats:{open,claimed,review,completed}, smtpConfigured, wechatEnabled}`。未登录也可访问。
 - `POST /spaces {name}`；`POST /spaces/join {code}`；`POST /spaces/invite {}` 刷新未满空间邀请。
 - `PATCH /settings {notifyEmail?,emailTheme?}`，至少一项；模板枚举 `strawberry,cream,mint,sky,lavender,night`，仅改变当前用户偏好，开启邮件提醒仍需已验证邮箱。`POST /auth/verification {}` 请求验证邮件；`POST /auth/verify {token}`。
-- `POST /auth/wechat/start {intent:'login'|'bind'}` 返回北辰微信授权地址；未配置微信时返回 503。`GET /auth/wechat/callback/:state?type=wx&code=...` 完成回调并 303 回首页。`POST /auth/email {email}` 仅允许没有邮箱的微信账号补充邮箱，不会合并账号；需要 SMTP 配置，否则返回 503。
+- `POST /auth/wechat/start {intent:'login'|'bind'}` 返回北辰微信授权地址；未配置微信时返回 503。`GET /auth/wechat/callback/:state?type=wx&code=...` 完成回调并 303 回站点根路径 `/`。`POST /auth/email {email}` 仅允许没有邮箱的微信账号补充邮箱，不会合并账号；需要 SMTP 配置，否则返回 503。
 
 ## 任务
 
-- `GET /tasks` → `{tasks, schedules}`。Task：`id,title,description,reward,mode:'ASSIGNED'|'RACE',status,creatorId,assignedTo,claimantId,submission,reviewNote,dueAt,createdAt,submittedAt,approvedAt,scheduleId`。含已结束任务，按创建时间倒序最多 200 条。
+- `GET /tasks` → `{tasks, schedules}`。Task：`id,title,description,reward,mode:'ASSIGNED'|'RACE',status,creatorId,assignedTo,claimantId,submission,reviewNote,dueAt,createdAt,submittedAt,approvedAt,scheduleId`。任务含已结束记录；任务与计划均按创建时间倒序各最多 200 条。
 - `POST /tasks {title,description,reward,mode,dueAt?}`，指定任务自动指向伴侣。
 - `POST /tasks/:id/claim {}`；`POST /tasks/:id/release {}`；`POST /tasks/:id/submit {submission}`；`POST /tasks/:id/review {approve:boolean,note?:string}`；`POST /tasks/:id/cancel {}`。
 - `POST /schedules {title,description,reward,mode,kind:'ONCE'|'DAILY'|'WEEKLY',runAt?:ISO,time?:'HH:mm',weekday?:1..7,durationHours:1..168}`。
-- `PATCH /schedules/:id {active:boolean}`。Schedule：上述创建字段和 `id,creatorId,active,nextRunAt,createdAt`。
+- `PATCH /schedules/:id {active:boolean}`，仅计划发布者可暂停或恢复。Schedule：上述创建字段和 `id,creatorId,active,nextRunAt,createdAt`。
 
 ## 商城与积分
 

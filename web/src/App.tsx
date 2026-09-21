@@ -7,12 +7,12 @@ import {
   CalendarDays,
   Check,
   CheckCheck,
+  ChevronDown,
+  ChevronLeft,
   ChevronRight,
-  ClipboardList,
   Copy,
   Gift,
   Heart,
-  Home,
   Inbox,
   ListChecks,
   LoaderCircle,
@@ -29,7 +29,6 @@ import {
   ShieldCheck,
   ShoppingBag,
   Sparkles,
-  Wallet,
   X,
 } from 'lucide-react';
 import { Button, Empty, Modal, ProductForm, TaskCard, TaskDetail, TaskForm } from './components';
@@ -55,7 +54,7 @@ import {
 } from './types';
 
 type ModalState =
-  | { type: 'task-new' }
+  | { type: 'task-new'; scheduled?: boolean }
   | { type: 'task'; id: string }
   | { type: 'product-new' }
   | { type: 'product-edit'; id: string }
@@ -92,53 +91,40 @@ function initialDestination(): PendingDestination | null {
   }
   return null;
 }
-const navigation: { id: Page; label: string; icon: typeof Home }[] = [
-  { id: 'home', label: '我们的今天', icon: Home },
-  { id: 'tasks', label: '小小约定', icon: ListChecks },
-  { id: 'shop', label: '心愿小店', icon: Gift },
-  { id: 'points', label: '我的积分', icon: Wallet },
-  { id: 'settings', label: '我们的空间', icon: Settings },
+const navigation: { id: Page; label: string; icon: typeof Heart }[] = [
+  { id: 'tasks', label: '约定', icon: ListChecks },
+  { id: 'shop', label: '心愿', icon: Gift },
+  { id: 'settings', label: '我们', icon: Heart },
 ];
-const pageCopy: Record<Page, { eyebrow: string; title: string; subtitle: string }> = {
-  home: {
-    eyebrow: 'OUR LITTLE EVERYDAY',
-    title: '把平凡日常，过成小小的心意',
-    subtitle: '一起做好每件小事，也别忘了奖励彼此。',
-  },
-  tasks: {
-    eyebrow: 'A PROMISE, A LITTLE CLOSER',
-    title: '小小约定',
-    subtitle: '认真完成的每一件小事，都会被对方看见。',
-  },
-  shop: {
-    eyebrow: 'MADE WITH LOVE, JUST FOR YOU',
-    title: '心愿小店',
-    subtitle: '攒下的每一分用心，都值得一份小小的期待。',
-  },
-  points: {
-    eyebrow: 'EVERY LITTLE EFFORT COUNTS',
-    title: '我的积分',
-    subtitle: '记录每一份付出，也记录收到的每一份心意。',
-  },
-  settings: {
-    eyebrow: 'A SPACE FOR JUST THE TWO OF US',
-    title: '我们的空间',
-    subtitle: '把通知、日常计划和两个人的小习惯，都安放在这里。',
-  },
+const pageCopy: Record<Page, { title: string; subtitle: string }> = {
+  tasks: { title: '约定', subtitle: '一起做好日常的小事。' },
+  shop: { title: '心愿', subtitle: '把用心攒成喜欢的事。' },
+  settings: { title: '我们', subtitle: '' },
+  points: { title: '积分记录', subtitle: '' },
+  orders: { title: '兑换记录', subtitle: '在这里兑现和确认彼此的心意。' },
+  history: { title: '历史约定', subtitle: '完成、取消和到期的约定都在这里。' },
+  schedules: { title: '定时计划', subtitle: '' },
+  notifications: { title: '消息', subtitle: '' },
+  account: { title: '账号设置', subtitle: '' },
+  mail: { title: '邮件提醒', subtitle: '' },
 };
+function currentPage(): Page {
+  const hash = location.hash.slice(1);
+  return Object.hasOwn(pageCopy, hash) ? (hash as Page) : 'tasks';
+}
 
 export default function App() {
   const [bootstrap, setBootstrap] = useState<Bootstrap | null>(null);
   const [data, setData] = useState<Data>(emptyData);
-  const [page, setPage] = useState<Page>('home');
+  const [page, setPage] = useState<Page>(currentPage);
   const [modal, setModal] = useState<ModalState>(null);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<{ text: string; error?: boolean } | null>(null);
   const [loadError, setLoadError] = useState('');
-  const [taskFilter, setTaskFilter] = useState('all');
-  const [shopTab, setShopTab] = useState('products');
-  const [shopFilter, setShopFilter] = useState('all');
+  const [taskFilter, setTaskFilter] = useState('current');
   const [search, setSearch] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(6);
   const [pendingDestination, setPendingDestination] = useState(initialDestination);
   const [loadedDataFor, setLoadedDataFor] = useState<string | null>(null);
   const [highlightedOrder, setHighlightedOrder] = useState<string | null>(null);
@@ -240,7 +226,7 @@ export default function App() {
         url.searchParams.delete('verify');
         url.searchParams.delete('token');
         history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
-        setPage('settings');
+        navigate('account', true);
       }
     });
   }, [bootstrap, perform]);
@@ -261,7 +247,7 @@ export default function App() {
       setToast({ text: '微信登录成功，欢迎来到两个人' });
     } else if (result === 'bound' && bootstrap.user?.wechatBound) {
       setToast({ text: '微信已绑定，下次可以直接使用微信登录' });
-      if (bootstrap.space && bootstrap.partner) setPage('settings');
+      if (bootstrap.space && bootstrap.partner) navigate('account', true);
     } else {
       setToast({
         text: messages[url.searchParams.get('reason') || ''] || '微信授权未能完成，请重新发起。',
@@ -270,7 +256,7 @@ export default function App() {
     }
     url.searchParams.delete('wechat');
     url.searchParams.delete('reason');
-    history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
+    history.replaceState(null, '', `${url.pathname}${url.search}${location.hash}`);
   }, [bootstrap]);
   useEffect(() => {
     if (
@@ -282,17 +268,21 @@ export default function App() {
       loadedDataFor !== `${bootstrap.user.id}:${bootstrap.space.id}`
     )
       return;
-    setPage(pendingDestination.page);
+    navigate(
+      pendingDestination.page === 'shop' && pendingDestination.orders
+        ? 'orders'
+        : pendingDestination.page,
+      true,
+    );
     setSearch('');
     if (pendingDestination.page === 'tasks') {
-      setTaskFilter('all');
+      setTaskFilter('current');
       if (pendingDestination.taskId) {
         if (data.tasks.some((task) => task.id === pendingDestination.taskId))
           setModal({ type: 'task', id: pendingDestination.taskId });
         else setToast({ text: '这条约定暂时无法查看，你可以在这里查看其他约定。', error: true });
       }
     } else {
-      setShopTab(pendingDestination.orders ? 'orders' : 'products');
       if (pendingDestination.orderId) {
         if (data.orders.some((order) => order.id === pendingDestination.orderId))
           setHighlightedOrder(pendingDestination.orderId);
@@ -308,14 +298,29 @@ export default function App() {
     }
     const url = new URL(location.href);
     for (const key of ['page', 'task', 'tab', 'order']) url.searchParams.delete(key);
-    history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
+    history.replaceState(null, '', `${url.pathname}${url.search}${location.hash}`);
   }, [bootstrap, busy, data, loadedDataFor, pendingDestination]);
   useEffect(() => {
-    if (!highlightedOrder || page !== 'shop' || shopTab !== 'orders') return;
+    if (!highlightedOrder || page !== 'orders') return;
     const row = document.getElementById(`order-${highlightedOrder}`);
     row?.scrollIntoView({ block: 'center', behavior: 'smooth' });
     row?.focus({ preventScroll: true });
-  }, [highlightedOrder, page, shopTab]);
+  }, [highlightedOrder, page]);
+
+  useEffect(() => {
+    setVisibleCount(6);
+  }, [page, taskFilter, search]);
+  useEffect(() => {
+    const restorePage = () => {
+      setPage(currentPage());
+      setModal(null);
+      setSearch('');
+      setSearchOpen(false);
+      setHighlightedOrder(null);
+    };
+    window.addEventListener('popstate', restorePage);
+    return () => window.removeEventListener('popstate', restorePage);
+  }, []);
 
   async function startWechat(intent: 'login' | 'bind') {
     if (busy) return;
@@ -351,8 +356,13 @@ export default function App() {
     }
   }
 
-  function navigate(next: Page) {
+  function navigate(next: Page, replace = false) {
+    if (location.hash !== `#${next}`) {
+      if (replace) history.replaceState(null, '', `#${next}`);
+      else history.pushState(null, '', `#${next}`);
+    }
     setPage(next);
+    setSearchOpen(false);
     setSearch('');
     setHighlightedOrder(null);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -452,48 +462,50 @@ export default function App() {
   const openTasks = data.tasks.filter(
     (task) => task.status === 'OPEN' && (task.mode === 'RACE' || task.assignedTo === user.id),
   );
-  const activeTasks = [...reviewTasks, ...myTasks, ...openTasks].slice(0, 4);
-  const visibleTasks = data.tasks.filter(
-    (task) =>
-      (taskFilter === 'all' ||
-        (taskFilter === 'open' && openTasks.some((item) => item.id === task.id)) ||
-        (taskFilter === 'mine' &&
-          task.claimantId === user.id &&
-          ['CLAIMED', 'SUBMITTED'].includes(task.status)) ||
-        (taskFilter === 'review' && reviewTasks.some((item) => item.id === task.id)) ||
-        (taskFilter === 'done' && ['APPROVED', 'CANCELLED', 'EXPIRED'].includes(task.status))) &&
-      (!search || `${task.title} ${task.description}`.includes(search)),
+  const activeTab: Page = page === 'tasks' || page === 'shop' ? page : 'settings';
+  const secondaryPage = !navigation.some((item) => item.id === page);
+  const pendingOrders = data.orders.filter(
+    (order) =>
+      (order.status === 'PENDING' && order.sellerId === user.id) ||
+      (order.status === 'FULFILLED' && order.buyerId === user.id),
   );
+  const sortedOrders = [...data.orders].sort(
+    (a, b) => Number(pendingOrders.includes(b)) - Number(pendingOrders.includes(a)),
+  );
+  const orderLimit = Math.max(
+    visibleCount,
+    sortedOrders.findIndex((order) => order.id === highlightedOrder) + 1,
+  );
+  const taskPriority = (task: Task) =>
+    reviewTasks.includes(task) ? 0 : myTasks.includes(task) ? 1 : openTasks.includes(task) ? 2 : 3;
+  const visibleTasks = data.tasks
+    .filter((task) => {
+      const ended = ['APPROVED', 'CANCELLED', 'EXPIRED'].includes(task.status);
+      return (
+        (page === 'history'
+          ? ended
+          : !ended &&
+            (taskFilter === 'current' ||
+              (taskFilter === 'mine' &&
+                (task.claimantId === user.id || task.assignedTo === user.id)) ||
+              (taskFilter === 'review' && reviewTasks.includes(task)))) &&
+        (!search ||
+          `${task.title} ${task.description}`.toLowerCase().includes(search.toLowerCase()))
+      );
+    })
+    .sort((a, b) => (page === 'history' ? 0 : taskPriority(a) - taskPriority(b)));
   const visibleProducts = data.products.filter(
-    (product) =>
-      (product.active || product.creatorId === user.id) &&
-      (shopFilter === 'all' ||
-        (shopFilter === 'mine' ? product.creatorId === user.id : product.creatorId !== user.id)),
+    (product) => product.active || product.creatorId === user.id,
   );
-  const featuredProducts = data.products
-    .filter((product) => product.active && product.stock > 0)
-    .slice(0, 2);
   const selectedTask =
     modal?.type === 'task' ? data.tasks.find((task) => task.id === modal.id) : undefined;
   const selectedProduct =
     modal?.type === 'product-edit' || modal?.type === 'redeem'
       ? data.products.find((product) => product.id === modal.id)
       : undefined;
-  const greeting =
-    new Intl.DateTimeFormat('zh-CN', { timeZone: 'Asia/Shanghai', hour: 'numeric', hour12: false })
-      .formatToParts(new Date())
-      .find((part) => part.type === 'hour')?.value || '12';
-  const greetingText =
-    Number(greeting) < 11
-      ? '早上好'
-      : Number(greeting) < 14
-        ? '中午好'
-        : Number(greeting) < 18
-          ? '下午好'
-          : '晚上好';
 
   return (
-    <div className="app-shell">
+    <div className="app-shell compact-app">
       <aside className="sidebar">
         <Brand />
         <div className="sidebar-caption">两个人，一起把日子过好。</div>
@@ -501,10 +513,11 @@ export default function App() {
           {navigation.map((item) => (
             <button
               key={item.id}
-              className={`nav-item ${page === item.id ? 'active' : ''}`}
+              className={`nav-item ${activeTab === item.id ? 'active' : ''}`}
+              aria-current={activeTab === item.id ? 'page' : undefined}
               onClick={() => navigate(item.id)}
             >
-              <item.icon size={20} strokeWidth={page === item.id ? 2.2 : 1.7} />
+              <item.icon size={20} strokeWidth={activeTab === item.id ? 2.2 : 1.7} />
               <span>{item.label}</span>
               {item.id === 'tasks' && reviewTasks.length > 0 && (
                 <span className="nav-count">{reviewTasks.length}</span>
@@ -548,268 +561,86 @@ export default function App() {
             <button
               className="notification-button"
               aria-label={`通知${unread ? `，${unread}条未读` : ''}`}
-              onClick={() => navigate('settings')}
+              onClick={() => navigate('notifications')}
             >
               <Bell size={20} />
               {unread > 0 && <span />}
             </button>
-            <button
-              className="profile-button"
-              onClick={() => navigate('settings')}
-              aria-label="个人设置"
-            >
-              <span>{user.name.slice(0, 1)}</span>
-              <b>{user.name}</b>
-            </button>
           </div>
         </header>
         <main>
+          {secondaryPage && (
+            <button className="back-link" onClick={() => navigate('settings')}>
+              <ChevronLeft size={20} />
+              我们
+            </button>
+          )}
           <div className="page-heading">
             <div>
-              <span className="eyebrow">{pageCopy[page].eyebrow}</span>
               <h1>{pageCopy[page].title}</h1>
-              <p>{pageCopy[page].subtitle}</p>
+              {pageCopy[page].subtitle && <p>{pageCopy[page].subtitle}</p>}
             </div>
-            {page === 'home' || page === 'tasks' ? (
+            {page === 'tasks' ? (
               <Button className="primary" onClick={() => setModal({ type: 'task-new' })}>
                 <Plus size={18} />
-                发布小约定
+                新建约定
               </Button>
             ) : page === 'shop' ? (
               <Button className="primary" onClick={() => setModal({ type: 'product-new' })}>
                 <Plus size={18} />
-                上架心愿
+                添加心愿
               </Button>
             ) : null}
           </div>
 
-          {page === 'home' && (
-            <>
-              <section className="welcome-card">
-                <div className="welcome-copy">
-                  <span className="welcome-tag">
-                    <span />
-                    OUR SPACE · 我们的小世界
-                  </span>
-                  <h2>
-                    {greetingText}，{user.name} <span>☀</span>
-                  </h2>
-                  <p>
-                    幸福藏在日常的小事里。
-                    <br />
-                    今天，也为{partner.name}做一点什么吧。
-                  </p>
-                  <button
-                    className="text-link"
-                    onClick={() => {
-                      setTaskFilter('open');
-                      navigate('tasks');
-                    }}
-                  >
-                    看看有哪些小约定 <ArrowRight size={17} />
-                  </button>
-                </div>
-                <div className="couple-art" aria-hidden="true">
-                  <span className="art-orbit orbit-one" />
-                  <span className="art-orbit orbit-two" />
-                  <span className="art-spark spark-one">✦</span>
-                  <span className="art-spark spark-two">✧</span>
-                  <span className="art-spark spark-three">✦</span>
-                  <div className="art-heart heart-one">
-                    <Heart fill="currentColor" />
-                  </div>
-                  <div className="art-heart heart-two">
-                    <Heart fill="currentColor" />
-                  </div>
-                  <div className="art-note">
-                    <Heart size={13} fill="currentColor" /> little things, big love
-                  </div>
-                </div>
-              </section>
-              <div className="stats-grid">
-                <button className="stat-card" onClick={() => navigate('points')}>
-                  <span className="stat-icon rose">
-                    <Sparkles size={22} />
-                  </span>
-                  <div>
-                    <span className="stat-label">我的心意积分</span>
-                    <strong>
-                      {bootstrap.balance}
-                      <small>积分</small>
-                    </strong>
-                  </div>
-                  <ArrowUpRight size={17} />
-                </button>
-                <button
-                  className="stat-card"
-                  onClick={() => {
-                    setTaskFilter('mine');
-                    navigate('tasks');
-                  }}
-                >
-                  <span className="stat-icon peach">
-                    <ClipboardList size={22} />
-                  </span>
-                  <div>
-                    <span className="stat-label">我在做的小约定</span>
-                    <strong>
-                      {myTasks.length}
-                      <small>件进行中</small>
-                    </strong>
-                  </div>
-                  <ArrowUpRight size={17} />
-                </button>
-                <button
-                  className="stat-card"
-                  onClick={() => {
-                    setTaskFilter('review');
-                    navigate('tasks');
-                  }}
-                >
-                  <span className="stat-icon sage">
-                    <CheckCheck size={22} />
-                  </span>
-                  <div>
-                    <span className="stat-label">等待我的验收</span>
-                    <strong>
-                      {reviewTasks.length}
-                      <small>份用心</small>
-                    </strong>
-                  </div>
-                  <ArrowUpRight size={17} />
-                </button>
-              </div>
-              <div className="dashboard-grid">
-                <section className="panel today-panel">
-                  <div className="section-heading">
-                    <div>
-                      <span className="section-kicker">LITTLE PROMISES</span>
-                      <h2>今天，为彼此做点什么</h2>
-                    </div>
-                    <button className="text-link muted-link" onClick={() => navigate('tasks')}>
-                      查看全部 <ChevronRight size={15} />
-                    </button>
-                  </div>
-                  {activeTasks.length ? (
-                    <div className="task-list">
-                      {activeTasks.map((task) => (
-                        <TaskCard
-                          key={task.id}
-                          task={task}
-                          bootstrap={bootstrap}
-                          onOpen={() => setModal({ type: 'task', id: task.id })}
-                        />
-                      ))}
-                    </div>
-                  ) : (
-                    <Empty icon={<ListChecks size={27} />} title="日常的美好，从一个小约定开始">
-                      做一顿晚饭、一起散步，或是认真说一句晚安。
-                      <Button className="subtle" onClick={() => setModal({ type: 'task-new' })}>
-                        <Plus size={16} />
-                        写下第一个约定
-                      </Button>
-                    </Empty>
-                  )}
-                  <div className="panel-footer">
-                    <Heart size={14} />
-                    每一件小事，都是「我在乎你」的另一种说法。
-                  </div>
-                </section>
-                <section className="panel wish-preview">
-                  <div className="section-heading">
-                    <div>
-                      <span className="section-kicker">A LITTLE SOMETHING</span>
-                      <h2>攒一份小期待</h2>
-                    </div>
-                    <Gift size={20} className="rose-text" />
-                  </div>
-                  {featuredProducts.length ? (
-                    featuredProducts.map((product) => (
-                      <button
-                        key={product.id}
-                        className="mini-product"
-                        onClick={() =>
-                          setModal({ type: 'redeem', id: product.id, key: requestKey() })
-                        }
-                      >
-                        <span className="mini-product-emoji">{product.emoji}</span>
-                        <div>
-                          <strong>{product.title}</strong>
-                          <span>
-                            {product.price} 积分 ·{' '}
-                            {bootstrap.balance >= product.price
-                              ? '现在就能兑换'
-                              : `还差 ${product.price - bootstrap.balance} 积分`}
-                          </span>
-                          <div className="progress-track">
-                            <span
-                              style={{
-                                width: `${Math.min(100, (bootstrap.balance / product.price) * 100)}%`,
-                              }}
-                            />
-                          </div>
-                        </div>
-                        <ChevronRight size={17} />
-                      </button>
-                    ))
-                  ) : (
-                    <div className="wish-empty">
-                      <span>🎁</span>
-                      <p>
-                        暂时没有可兑换的心愿
-                        <br />
-                        把你们想要的小惊喜放上来吧。
-                      </p>
-                    </div>
-                  )}
-                  <button className="button subtle wide" onClick={() => navigate('shop')}>
-                    去心愿小店逛逛 <ArrowRight size={16} />
-                  </button>
-                </section>
-              </div>
-              <div className="daily-note">
-                <span>♡</span>
-                <p>
-                  我们不必把日子过得多么盛大，<b>认真对待彼此就很好。</b>
-                </p>
-                <span>♡</span>
-              </div>
-            </>
-          )}
-
-          {page === 'tasks' && (
+          {(page === 'tasks' || page === 'history') && (
             <section className="panel page-panel">
               <div className="toolbar">
-                <div className="tabs" role="group" aria-label="任务筛选">
-                  {[
-                    ['all', '全部约定'],
-                    ['open', '可以领取'],
-                    ['mine', '我的任务'],
-                    ['review', `待我验收${reviewTasks.length ? ` ${reviewTasks.length}` : ''}`],
-                    ['done', '已结束'],
-                  ].map(([key, label]) => (
-                    <button
-                      key={key}
-                      className={taskFilter === key ? 'active' : ''}
-                      onClick={() => setTaskFilter(key)}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-                <label className="search-field">
-                  <Search size={17} />
-                  <input
-                    aria-label="搜索任务"
-                    value={search}
-                    onChange={(event) => setSearch(event.target.value)}
-                    placeholder="找一个小约定"
-                  />
-                </label>
+                {page === 'tasks' && (
+                  <div className="tabs" role="group" aria-label="约定筛选">
+                    {[
+                      ['current', '当前'],
+                      ['mine', '我的'],
+                      ['review', `待验收${reviewTasks.length ? ` ${reviewTasks.length}` : ''}`],
+                    ].map(([key, label]) => (
+                      <button
+                        key={key}
+                        aria-pressed={taskFilter === key}
+                        className={taskFilter === key ? 'active' : ''}
+                        onClick={() => setTaskFilter(key)}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <button
+                  className="icon-button search-toggle"
+                  aria-label={searchOpen ? '收起搜索' : '搜索约定'}
+                  aria-expanded={searchOpen}
+                  onClick={() => {
+                    setSearchOpen(!searchOpen);
+                    setSearch('');
+                  }}
+                >
+                  {searchOpen ? <X size={19} /> : <Search size={19} />}
+                </button>
+                {searchOpen && (
+                  <label className="search-field">
+                    <Search size={17} />
+                    <input
+                      aria-label="搜索约定"
+                      autoFocus
+                      value={search}
+                      onChange={(event) => setSearch(event.target.value)}
+                      placeholder="搜索约定"
+                    />
+                  </label>
+                )}
               </div>
               {visibleTasks.length ? (
                 <div className="task-list full-task-list">
-                  {visibleTasks.map((task) => (
+                  {visibleTasks.slice(0, visibleCount).map((task) => (
                     <TaskCard
                       key={task.id}
                       task={task}
@@ -823,286 +654,294 @@ export default function App() {
                   icon={<ListChecks size={28} />}
                   title={
                     search
-                      ? '没有找到这个约定'
-                      : taskFilter === 'review'
-                        ? '暂时没有等待验收的任务'
-                        : '这里还没有小约定'
+                      ? '没有找到相关约定'
+                      : page === 'history'
+                        ? '还没有历史约定'
+                        : taskFilter === 'review'
+                          ? '没有待验收的约定'
+                          : taskFilter === 'mine'
+                            ? '暂时没有你的约定'
+                            : '现在没有待办约定'
                   }
                 >
                   {search
-                    ? '试试换个关键词，或者查看全部约定。'
-                    : '给日常一点仪式感，写下一件想一起完成的小事。'}
-                  {!search && (
+                    ? '换个关键词试试。'
+                    : page === 'history'
+                      ? '结束的约定会留在这里。'
+                      : taskFilter === 'review'
+                        ? '对方提交完成后，会出现在这里。'
+                        : '一起散步，或为对方做一顿晚饭。'}
+                  {!search && page !== 'history' && taskFilter !== 'review' && (
                     <Button className="subtle" onClick={() => setModal({ type: 'task-new' })}>
                       <Plus size={16} />
-                      发布小约定
+                      写下一个约定
                     </Button>
                   )}
                 </Empty>
               )}
-              <div className="panel-footer">
-                <CalendarDays size={14} />
-                想每天或每周重复？发布时选择时间类型，之后可在「我们的空间」管理计划。
-              </div>
+              <MoreItems
+                shown={visibleCount}
+                total={visibleTasks.length}
+                onMore={() => setVisibleCount((count) => count + 6)}
+              />
             </section>
           )}
 
           {page === 'shop' && (
             <>
-              <div className="shop-top">
-                <div className="tabs" role="group" aria-label="商城页面">
-                  <button
-                    className={shopTab === 'products' ? 'active' : ''}
-                    onClick={() => setShopTab('products')}
-                  >
-                    <Gift size={16} />
-                    心愿架
-                  </button>
-                  <button
-                    className={shopTab === 'orders' ? 'active' : ''}
-                    onClick={() => setShopTab('orders')}
-                  >
-                    <ShoppingBag size={16} />
-                    兑换记录
-                    {data.orders.filter(
-                      (order) =>
-                        (order.status === 'PENDING' && order.sellerId === user.id) ||
-                        (order.status === 'FULFILLED' && order.buyerId === user.id),
-                    ).length > 0 && <span className="tiny-dot" />}
-                  </button>
-                </div>
-                <span className="balance-label">
+              <div className="wish-balance">
+                <span>
                   <Sparkles size={17} />
-                  可用积分 <strong>{bootstrap.balance}</strong>
+                  可用积分
                 </span>
+                <strong>{bootstrap.balance}</strong>
               </div>
-              {shopTab === 'products' ? (
-                <>
-                  <div className="filter-line">
-                    {[
-                      ['all', '全部心愿'],
-                      ['partner', `${partner.name}上架的`],
-                      ['mine', '我上架的'],
-                    ].map(([key, label]) => (
-                      <button
-                        key={key}
-                        className={shopFilter === key ? 'selected' : ''}
-                        onClick={() => setShopFilter(key)}
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                  {visibleProducts.length ? (
-                    <div className="product-grid">
-                      {visibleProducts.map((product, index) => (
-                        <article className="product-card" key={product.id}>
-                          <div className={`product-art product-color-${index % 4}`}>
-                            <span>{product.emoji}</span>
-                            {product.creatorId === user.id && (
-                              <span className="product-owner">我上架的</span>
-                            )}
-                            {!product.active && <span className="product-inactive">已下架</span>}
-                          </div>
-                          <div className="product-body">
-                            <span className="product-from">
-                              {personName(product.creatorId, bootstrap)}上架 · 兑换后由另一半兑现
-                            </span>
-                            <h3>{product.title}</h3>
-                            <p>{product.description || '一份等待兑现的小美好。'}</p>
-                            <div className="product-price">
-                              <strong>
-                                {product.price}
-                                <small>积分</small>
-                              </strong>
-                              <span>剩余 {product.stock} 份</span>
-                            </div>
-                            {product.creatorId === user.id && (
-                              <div className="product-actions">
-                                <Button
-                                  className="subtle"
-                                  onClick={() => setModal({ type: 'product-edit', id: product.id })}
-                                >
-                                  <Pencil size={15} />
-                                  编辑心愿
-                                </Button>
-                                <Button
-                                  className="ghost"
-                                  busy={busy}
-                                  onClick={() =>
-                                    perform(
-                                      `/products/${product.id}`,
-                                      { active: !product.active },
-                                      product.active
-                                        ? '心愿已下架，现有订单仍可继续兑现'
-                                        : '心愿重新上架啦',
-                                      'PATCH',
-                                    )
-                                  }
-                                >
-                                  {product.active ? '下架' : '上架'}
-                                </Button>
-                              </div>
-                            )}
-                            <Button
-                              className="subtle wide product-redeem"
-                              disabled={!product.active || product.stock === 0}
-                              onClick={() =>
-                                setModal({ type: 'redeem', id: product.id, key: requestKey() })
-                              }
-                            >
-                              {!product.active
-                                ? '心愿已下架'
-                                : product.stock === 0
-                                  ? '这份心意暂时兑完啦'
-                                  : bootstrap.balance < product.price
-                                    ? `还差 ${product.price - bootstrap.balance} 积分`
-                                    : '兑换这份心意'}
-                              <ArrowRight size={16} />
-                            </Button>
-                          </div>
-                        </article>
-                      ))}
-                    </div>
-                  ) : (
-                    <section className="panel">
-                      <Empty icon={<Gift size={28} />} title="把你们想要的心愿放上来">
-                        一杯奶茶、一场电影、一次专属按摩，都可以成为值得期待的奖励。
+              {pendingOrders.length > 0 && (
+                <button className="action-reminder" onClick={() => navigate('orders')}>
+                  <Gift size={18} />
+                  <span>{pendingOrders.length} 份心愿等你处理</span>
+                  <ChevronRight size={18} />
+                </button>
+              )}
+              {visibleProducts.length ? (
+                <section className="compact-wishes" aria-label="心愿列表">
+                  {visibleProducts.slice(0, visibleCount).map((product) => (
+                    <article className="wish-row" key={product.id}>
+                      <span className="wish-symbol" aria-hidden="true">
+                        {product.emoji}
+                      </span>
+                      <div className="wish-copy">
+                        <h3>{product.title}</h3>
+                        <p className="wish-meta">
+                          <strong>{product.price} 积分</strong>
+                          <span>
+                            {!product.active
+                              ? '已下架'
+                              : product.stock === 0
+                                ? '已兑完'
+                                : bootstrap.balance < product.price
+                                  ? `还差 ${product.price - bootstrap.balance} 分`
+                                  : '可以兑换'}
+                          </span>
+                        </p>
+                      </div>
+                      <div className="wish-actions">
                         <Button
-                          className="primary"
-                          onClick={() => setModal({ type: 'product-new' })}
+                          className="subtle small"
+                          onClick={() =>
+                            setModal({ type: 'redeem', id: product.id, key: requestKey() })
+                          }
                         >
-                          <Plus size={17} />
-                          上架第一份心愿
+                          查看
                         </Button>
-                      </Empty>
-                    </section>
-                  )}
-                </>
+                        {product.creatorId === user.id && (
+                          <button
+                            className="icon-button"
+                            aria-label={`管理心愿：${product.title}`}
+                            onClick={() => setModal({ type: 'product-edit', id: product.id })}
+                          >
+                            <Pencil size={16} />
+                          </button>
+                        )}
+                      </div>
+                    </article>
+                  ))}
+                </section>
               ) : (
-                <section className="panel orders-panel">
-                  {data.orders.length ? (
-                    data.orders.map((order) => (
-                      <article
-                        className={`order-card ${highlightedOrder === order.id ? 'order-highlighted' : ''}`}
-                        key={order.id}
-                        id={`order-${order.id}`}
-                        tabIndex={-1}
-                      >
-                        <div className="order-icon">
-                          <Gift size={23} />
-                        </div>
-                        <div className="order-info">
-                          <div className="order-title">
-                            <h3>{order.title}</h3>
-                            <span
-                              className={`status status-${order.status === 'COMPLETED' ? 'approved' : order.status === 'CANCELLED' ? 'cancelled' : 'submitted'}`}
-                            >
-                              {orderStatus[order.status]}
-                            </span>
-                          </div>
-                          <p>
-                            {personName(order.buyerId, bootstrap)}兑换 · 由
-                            {personName(order.sellerId, bootstrap)}兑现 · {order.price} 积分
-                          </p>
-                          <small>{dateText(order.createdAt, true)}</small>
-                          {order.description && (
-                            <p className="order-description">{order.description}</p>
-                          )}
-                        </div>
-                        <div className="order-actions">
-                          {order.status === 'PENDING' && order.sellerId === user.id && (
-                            <Button
-                              busy={busy}
-                              className="primary small"
-                              onClick={() =>
-                                perform(
-                                  `/orders/${order.id}/action`,
-                                  { action: 'fulfill' },
-                                  '已标记兑现，等待对方确认',
-                                )
-                              }
-                            >
-                              <Check size={15} />
-                              我已兑现
-                            </Button>
-                          )}
-                          {order.status === 'FULFILLED' && order.buyerId === user.id && (
-                            <Button
-                              busy={busy}
-                              className="primary small"
-                              onClick={() =>
-                                perform(
-                                  `/orders/${order.id}/action`,
-                                  { action: 'complete' },
-                                  '心意已收到，这次兑换圆满完成',
-                                )
-                              }
-                            >
-                              <Heart size={15} />
-                              确认收到
-                            </Button>
-                          )}
-                          {order.status === 'PENDING' && (
-                            <Button
-                              busy={busy}
-                              className="ghost small"
-                              onClick={() =>
-                                perform(
-                                  `/orders/${order.id}/action`,
-                                  { action: 'cancel' },
-                                  '兑换已取消，积分和库存已退回',
-                                )
-                              }
-                            >
-                              {order.buyerId === user.id ? '取消兑换' : '暂不能兑现'}
-                            </Button>
-                          )}
-                        </div>
-                      </article>
-                    ))
-                  ) : (
-                    <Empty icon={<ShoppingBag size={28} />} title="还没有兑换记录">
-                      完成小约定赚取积分，再来兑换一份专属心意。
-                      <Button className="subtle" onClick={() => setShopTab('products')}>
-                        去心愿架看看 <ArrowRight size={16} />
-                      </Button>
-                    </Empty>
-                  )}
+                <section className="panel">
+                  <Empty icon={<Gift size={28} />} title="放上第一份心愿">
+                    一杯奶茶、一场电影，都值得期待。
+                    <Button className="subtle" onClick={() => setModal({ type: 'product-new' })}>
+                      <Plus size={17} />
+                      添加心愿
+                    </Button>
+                  </Empty>
                 </section>
               )}
+              <MoreItems
+                shown={visibleCount}
+                total={visibleProducts.length}
+                onMore={() => setVisibleCount((count) => count + 6)}
+              />
             </>
           )}
 
+          {page === 'settings' && (
+            <div className="us-page">
+              <section className="us-profile">
+                <div className="paired-avatars">
+                  <span>{user.name.slice(0, 1)}</span>
+                  <span>{partner.name.slice(0, 1)}</span>
+                  <Heart size={12} />
+                </div>
+                <div>
+                  <h2>{bootstrap.space.name}</h2>
+                  <p>
+                    {user.name} <span>与</span> {partner.name}
+                  </p>
+                </div>
+              </section>
+              <button className="us-balance" onClick={() => navigate('points')}>
+                <Sparkles size={21} />
+                <span>我的积分</span>
+                <strong>{bootstrap.balance}</strong>
+                <ChevronRight size={18} />
+              </button>
+              <div className="settings-menu" role="group" aria-label="我们的记录">
+                <SettingsLink
+                  icon={ShoppingBag}
+                  label="兑换记录"
+                  value={pendingOrders.length ? `${pendingOrders.length} 待处理` : undefined}
+                  onClick={() => navigate('orders')}
+                />
+                <SettingsLink
+                  icon={ListChecks}
+                  label="历史约定"
+                  onClick={() => navigate('history')}
+                />
+                <SettingsLink
+                  icon={CalendarDays}
+                  label="定时计划"
+                  onClick={() => navigate('schedules')}
+                />
+              </div>
+              <div className="settings-menu" role="group" aria-label="消息与设置">
+                <SettingsLink
+                  icon={Bell}
+                  label="消息"
+                  value={unread ? `${unread} 未读` : undefined}
+                  onClick={() => navigate('notifications')}
+                />
+                <SettingsLink
+                  icon={Settings}
+                  label="账号设置"
+                  onClick={() => navigate('account')}
+                />
+                <SettingsLink
+                  icon={Mail}
+                  label="邮件提醒"
+                  value={user.notifyEmail ? '已开启' : '已关闭'}
+                  onClick={() => navigate('mail')}
+                />
+              </div>
+            </div>
+          )}
+
+          {page === 'orders' && (
+            <section className="panel orders-panel">
+              {data.orders.length ? (
+                sortedOrders.slice(0, orderLimit).map((order) => (
+                  <article
+                    className={`order-card ${highlightedOrder === order.id ? 'order-highlighted' : ''}`}
+                    key={order.id}
+                    id={`order-${order.id}`}
+                    tabIndex={-1}
+                  >
+                    <div className="order-icon">
+                      <Gift size={23} />
+                    </div>
+                    <div className="order-info">
+                      <div className="order-title">
+                        <h3>{order.title}</h3>
+                        <span
+                          className={`status status-${order.status === 'COMPLETED' ? 'approved' : order.status === 'CANCELLED' ? 'cancelled' : 'submitted'}`}
+                        >
+                          {orderStatus[order.status]}
+                        </span>
+                      </div>
+                      <p>
+                        {personName(order.buyerId, bootstrap)}兑换 · 由
+                        {personName(order.sellerId, bootstrap)}兑现 · {order.price} 积分
+                      </p>
+                      <small>{dateText(order.createdAt, true)}</small>
+                      {order.description && (
+                        <p className="order-description">{order.description}</p>
+                      )}
+                    </div>
+                    <div className="order-actions">
+                      {order.status === 'PENDING' && order.sellerId === user.id && (
+                        <Button
+                          busy={busy}
+                          className="primary small"
+                          onClick={() =>
+                            perform(
+                              `/orders/${order.id}/action`,
+                              { action: 'fulfill' },
+                              '已标记兑现，等待对方确认',
+                            )
+                          }
+                        >
+                          <Check size={15} />
+                          我已兑现
+                        </Button>
+                      )}
+                      {order.status === 'FULFILLED' && order.buyerId === user.id && (
+                        <Button
+                          busy={busy}
+                          className="primary small"
+                          onClick={() =>
+                            perform(
+                              `/orders/${order.id}/action`,
+                              { action: 'complete' },
+                              '心意已收到，这次兑换圆满完成',
+                            )
+                          }
+                        >
+                          <Heart size={15} />
+                          确认收到
+                        </Button>
+                      )}
+                      {order.status === 'PENDING' && (
+                        <Button
+                          busy={busy}
+                          className="ghost small"
+                          onClick={() =>
+                            perform(
+                              `/orders/${order.id}/action`,
+                              { action: 'cancel' },
+                              '兑换已取消，积分和库存已退回',
+                            )
+                          }
+                        >
+                          {order.buyerId === user.id ? '取消兑换' : '暂不能兑现'}
+                        </Button>
+                      )}
+                    </div>
+                  </article>
+                ))
+              ) : (
+                <Empty icon={<ShoppingBag size={28} />} title="还没有兑换记录">
+                  完成小约定赚取积分，再来兑换一份专属心意。
+                  <Button className="subtle" onClick={() => navigate('shop')}>
+                    去心愿架看看 <ArrowRight size={16} />
+                  </Button>
+                </Empty>
+              )}
+              <MoreItems
+                shown={orderLimit}
+                total={sortedOrders.length}
+                onMore={() => setVisibleCount(orderLimit + 6)}
+              />
+            </section>
+          )}
           {page === 'points' && (
             <>
-              <section className="wallet-card">
-                <div>
-                  <span className="eyebrow">MY LITTLE REWARDS</span>
-                  <p>我的可用积分</p>
-                  <strong>
-                    {bootstrap.balance}
-                    <span>积分</span>
-                  </strong>
-                  <span className="wallet-note">每一分，都是认真在一起的证据。</span>
-                </div>
-                <div className="wallet-decoration" aria-hidden="true">
-                  <Sparkles size={70} strokeWidth={1} />
-                </div>
-                <Button className="light" onClick={() => navigate('shop')}>
-                  去兑换心愿 <ArrowRight size={16} />
-                </Button>
-              </section>
+              <div className="balance-summary">
+                <span>可用积分</span>
+                <strong>
+                  {bootstrap.balance}
+                  <small> 积分</small>
+                </strong>
+              </div>
               <section className="panel ledger-panel">
                 <div className="section-heading">
                   <div>
-                    <span className="section-kicker">LITTLE EFFORTS, WELL REMEMBERED</span>
-                    <h2>积分的来来往往</h2>
+                    <h2>收支记录</h2>
                   </div>
                   <span className="muted">仅展示我的积分</span>
                 </div>
                 {data.entries.length ? (
-                  data.entries.map((entry) => (
+                  data.entries.slice(0, visibleCount).map((entry) => (
                     <div className="ledger-row" key={entry.id}>
                       <span className={`ledger-icon ${entry.delta > 0 ? 'sage' : 'rose'}`}>
                         {entry.delta > 0 ? <ArrowDownLeft size={20} /> : <ArrowUpRight size={20} />}
@@ -1128,6 +967,11 @@ export default function App() {
                     </Button>
                   </Empty>
                 )}
+                <MoreItems
+                  shown={visibleCount}
+                  total={data.entries.length}
+                  onMore={() => setVisibleCount((count) => count + 6)}
+                />
                 <div className="panel-footer">
                   <ShieldCheck size={14} />
                   积分来自任务奖励，可用于兑换；取消待兑现的订单会自动退款。
@@ -1136,295 +980,256 @@ export default function App() {
             </>
           )}
 
-          {page === 'settings' && (
-            <div className="settings-grid">
-              <section className="panel settings-panel">
-                <div className="section-heading">
-                  <h2>
-                    <Heart size={20} />
-                    两个人的资料
-                  </h2>
-                </div>
-                <div className="settings-couple">
-                  <div>
-                    <span className="large-avatar">{user.name.slice(0, 1)}</span>
-                    <strong>{user.name}</strong>
-                    <small>我</small>
-                  </div>
-                  <Heart className="rose-text" size={23} />
-                  <div>
-                    <span className="large-avatar partner-avatar">{partner.name.slice(0, 1)}</span>
-                    <strong>{partner.name}</strong>
-                    <small>另一半</small>
-                  </div>
-                </div>
-                <div className="settings-pair">
-                  <span>空间名称</span>
-                  <strong>{bootstrap.space.name}</strong>
-                </div>
-                <WeChatAccountCard
-                  bootstrap={bootstrap}
-                  busy={busy}
-                  onAction={perform}
-                  onWechat={() => startWechat('bind')}
-                />
-                <Button
-                  busy={busy}
-                  className="ghost wide logout-button"
-                  onClick={async () => {
-                    if (await perform('/auth/logout', {}, '已安全退出')) {
-                      setPage('home');
-                      setModal(null);
-                    }
-                  }}
-                >
-                  <LogOut size={16} />
-                  退出登录
-                </Button>
-              </section>
-              <section className="panel settings-panel">
-                <div className="section-heading">
-                  <h2>
-                    <Mail size={20} />
-                    邮件小提醒
-                  </h2>
-                </div>
-                <p className="settings-description">
-                  任务发布、领取、提交和验收，以及心愿兑换与兑现的进展，都可以通过邮件提醒你。
-                  验证邮箱并开启下方开关后，就能收到与你有关的提醒。
-                </p>
-                <label className="toggle-row">
-                  <span>
-                    <strong>接收邮件通知</strong>
-                    <small>
-                      {!user.email
-                        ? '先补充并验证邮箱，即可开启邮件提醒'
-                        : !user.emailVerified
-                          ? '先验证邮箱，再开启邮件提醒'
-                          : user.notifyEmail
-                            ? '已开启，相关任务和兑换进展会发到你的邮箱'
-                            : '邮箱已验证，开启后接收任务和兑换提醒'}
-                    </small>
-                  </span>
-                  <input
-                    aria-label="接收邮件通知"
-                    type="checkbox"
-                    checked={user.notifyEmail}
-                    disabled={
-                      busy ||
-                      !user.email ||
-                      !user.emailVerified ||
-                      (!bootstrap.smtpConfigured && !user.notifyEmail)
-                    }
-                    onChange={(event) =>
-                      void perform(
-                        '/settings',
-                        { notifyEmail: event.target.checked },
-                        event.target.checked ? '邮件通知已开启' : '邮件通知已关闭',
-                        'PATCH',
-                      )
-                    }
-                  />
-                  <span className="toggle" aria-hidden="true" />
-                </label>
-                {!bootstrap.smtpConfigured && (
-                  <div className="inline-message warning">
-                    <Mail size={18} />
-                    <span>邮件服务暂未启用，暂时无法发送邮件。你仍可以在这里查看站内消息。</span>
-                  </div>
-                )}
-                {data.mail && (
-                  <>
-                    <div className="mail-stats">
-                      <div>
-                        <strong>{data.mail.counts.pending}</strong>
-                        <span>等待发送</span>
-                      </div>
-                      <div>
-                        <strong>{data.mail.counts.sent}</strong>
-                        <span>已发送</span>
-                      </div>
-                      <div>
-                        <strong>{data.mail.counts.failed}</strong>
-                        <span>发送失败</span>
-                      </div>
-                    </div>
-                    {data.mail.counts.failed > 0 && (
-                      <Button
-                        busy={busy}
-                        className="subtle wide"
-                        onClick={() => perform('/mail/retry', {}, '失败邮件已重新加入发送队列')}
-                      >
-                        <RefreshCw size={16} />
-                        重试失败邮件
-                      </Button>
-                    )}
-                  </>
-                )}
-                <MailTemplatePicker
-                  currentTheme={user.emailTheme}
-                  busy={busy}
-                  onSave={(emailTheme) =>
-                    perform(
+          {page === 'account' && (
+            <section className="panel settings-panel">
+              <WeChatAccountCard
+                bootstrap={bootstrap}
+                busy={busy}
+                onAction={perform}
+                onWechat={() => startWechat('bind')}
+              />
+              <Button
+                busy={busy}
+                className="ghost wide logout-button"
+                onClick={async () => {
+                  if (await perform('/auth/logout', {}, '已安全退出')) {
+                    navigate('tasks');
+                    setModal(null);
+                  }
+                }}
+              >
+                <LogOut size={16} />
+                退出登录
+              </Button>
+            </section>
+          )}
+          {page === 'mail' && (
+            <section className="panel settings-panel">
+              <div className="section-heading">
+                <h2>
+                  <Mail size={20} />
+                  邮件提醒
+                </h2>
+              </div>
+              <p className="settings-description">通过邮件接收约定和兑换进展。</p>
+              <label className="toggle-row">
+                <span>
+                  <strong>接收邮件通知</strong>
+                  <small>
+                    {!user.email
+                      ? '先补充并验证邮箱，即可开启邮件提醒'
+                      : !user.emailVerified
+                        ? '先验证邮箱，再开启邮件提醒'
+                        : user.notifyEmail
+                          ? '已开启，相关任务和兑换进展会发到你的邮箱'
+                          : '邮箱已验证，开启后接收任务和兑换提醒'}
+                  </small>
+                </span>
+                <input
+                  aria-label="接收邮件通知"
+                  type="checkbox"
+                  checked={user.notifyEmail}
+                  disabled={
+                    busy ||
+                    !user.email ||
+                    !user.emailVerified ||
+                    (!bootstrap.smtpConfigured && !user.notifyEmail)
+                  }
+                  onChange={(event) =>
+                    void perform(
                       '/settings',
-                      { emailTheme },
-                      '邮件样式已保存，之后的提醒将使用这个样式',
+                      { notifyEmail: event.target.checked },
+                      event.target.checked ? '邮件通知已开启' : '邮件通知已关闭',
                       'PATCH',
                     )
                   }
                 />
-              </section>
-              <section className="panel settings-panel wide-panel">
-                <div className="section-heading">
-                  <div>
-                    <span className="section-kicker">OUR ROUTINES</span>
-                    <h2>
-                      <CalendarDays size={20} />
-                      定时与日常计划
-                    </h2>
-                  </div>
-                  <Button className="subtle small" onClick={() => setModal({ type: 'task-new' })}>
-                    <Plus size={16} />
-                    新建计划
-                  </Button>
+                <span className="toggle" aria-hidden="true" />
+              </label>
+              {!bootstrap.smtpConfigured && (
+                <div className="inline-message warning">
+                  <Mail size={18} />
+                  <span>邮件服务暂未启用，暂时无法发送邮件。你仍可以在这里查看站内消息。</span>
                 </div>
-                {data.schedules.length ? (
-                  data.schedules.map((schedule) => (
-                    <div className="schedule-row" key={schedule.id}>
-                      <span className={`schedule-icon ${schedule.active ? 'rose' : ''}`}>
-                        <CalendarDays size={21} />
-                      </span>
-                      <div>
-                        <strong>
-                          {schedule.title}
-                          <span
-                            className={`status ${schedule.active ? 'status-approved' : 'status-cancelled'}`}
-                          >
-                            {schedule.active ? '进行中' : '已暂停 / 结束'}
-                          </span>
-                        </strong>
-                        <p>
-                          {scheduleText(schedule)} · {schedule.reward} 积分 · 发布后{' '}
-                          {schedule.durationHours} 小时截止
-                        </p>
-                        <small>
-                          {schedule.active && schedule.nextRunAt
-                            ? `下次发布 ${dateText(schedule.nextRunAt, true)}`
-                            : '暂停不会影响已经发布的任务'}
-                        </small>
-                      </div>
-                      {schedule.creatorId === user.id ? (
-                        <Button
-                          busy={busy}
-                          className="subtle small"
-                          onClick={() =>
-                            perform(
-                              `/schedules/${schedule.id}`,
-                              { active: !schedule.active },
-                              schedule.active
-                                ? '计划已暂停，已发布任务保持不变'
-                                : '计划已恢复，从下一个未来时刻继续',
-                              'PATCH',
-                            )
-                          }
-                        >
-                          {schedule.active ? <Pause size={15} /> : <Play size={15} />}
-                          {schedule.active ? '暂停' : '恢复'}
-                        </Button>
-                      ) : (
-                        <span className="muted">{partner.name}创建</span>
-                      )}
-                    </div>
-                  ))
-                ) : (
-                  <Empty icon={<CalendarDays size={25} />} title="一起养成小小的好习惯">
-                    每天散步、每周一次约会，设置重复计划后，到点就会自动发布任务。
-                  </Empty>
-                )}
-                <div className="form-hint">
-                  <CalendarDays size={14} />
-                  日程固定使用北京时间，暂停只影响未来的发布。
-                </div>
-              </section>
-              <section className="panel settings-panel wide-panel" id="notifications">
-                <div className="section-heading">
-                  <div>
-                    <span className="section-kicker">A NOTE FOR YOU</span>
-                    <h2>
-                      <Bell size={20} />
-                      消息与提醒{unread > 0 && <span className="count-badge">{unread}</span>}
-                    </h2>
-                  </div>
-                  <Button
-                    className="ghost small"
-                    disabled={unread === 0}
+              )}
+              {!!data.mail?.counts.failed && (
+                <Button
+                  busy={busy}
+                  className="subtle wide"
+                  onClick={() => perform('/mail/retry', {}, '失败邮件已重新加入发送队列')}
+                >
+                  <RefreshCw size={16} /> 重试 {data.mail.counts.failed} 封未发送的邮件
+                </Button>
+              )}
+              <details className="form-options">
+                <summary>
+                  邮件外观 <ChevronRight size={17} />
+                </summary>
+                <div className="form-options-body">
+                  <MailTemplatePicker
+                    currentTheme={user.emailTheme}
                     busy={busy}
-                    onClick={() => perform('/notifications/read', {}, '所有消息已标记为已读')}
-                  >
-                    <CheckCheck size={16} />
-                    全部已读
-                  </Button>
+                    onSave={(emailTheme) =>
+                      perform(
+                        '/settings',
+                        { emailTheme },
+                        '邮件样式已保存，之后的提醒将使用这个样式',
+                        'PATCH',
+                      )
+                    }
+                  />
                 </div>
-                {data.notifications.length ? (
-                  data.notifications.map((notice) => (
-                    <article
-                      className={`notice-row ${notice.readAt ? '' : 'unread'}`}
-                      key={notice.id}
-                    >
-                      <span className="notice-dot" />
-                      <div>
-                        <h3>{notice.title}</h3>
-                        <p>{notice.body}</p>
-                        <small>{dateText(notice.createdAt, true)}</small>
-                      </div>
-                    </article>
-                  ))
-                ) : (
-                  <Empty icon={<Inbox size={25} />} title="这里会收到对方的小消息">
-                    任务进展、兑换和验收通知，都将在这里好好保存。
-                  </Empty>
-                )}
-              </section>
-            </div>
+              </details>
+            </section>
           )}
-
-          <footer className="page-footer">
-            <Heart size={12} />
-            两个人 · 把喜欢，放进每一天
-          </footer>
+          {page === 'schedules' && (
+            <section className="panel settings-panel wide-panel">
+              <div className="section-heading">
+                <div>
+                  <h2>
+                    <CalendarDays size={20} />
+                    定时计划
+                  </h2>
+                </div>
+                <Button
+                  className="subtle small"
+                  onClick={() => setModal({ type: 'task-new', scheduled: true })}
+                >
+                  <Plus size={16} />
+                  新建计划
+                </Button>
+              </div>
+              {data.schedules.length ? (
+                data.schedules.slice(0, visibleCount).map((schedule) => (
+                  <div className="schedule-row" key={schedule.id}>
+                    <span className={`schedule-icon ${schedule.active ? 'rose' : ''}`}>
+                      <CalendarDays size={21} />
+                    </span>
+                    <div>
+                      <strong>
+                        {schedule.title}
+                        <span
+                          className={`status ${schedule.active ? 'status-approved' : 'status-cancelled'}`}
+                        >
+                          {schedule.active ? '进行中' : '已暂停 / 结束'}
+                        </span>
+                      </strong>
+                      <p>
+                        {scheduleText(schedule)} · {schedule.reward} 积分 · 发布后{' '}
+                        {schedule.durationHours} 小时截止
+                      </p>
+                      <small>
+                        {schedule.active && schedule.nextRunAt
+                          ? `下次发布 ${dateText(schedule.nextRunAt, true)}`
+                          : '暂停不会影响已经发布的任务'}
+                      </small>
+                    </div>
+                    {schedule.creatorId === user.id ? (
+                      <Button
+                        busy={busy}
+                        className="subtle small"
+                        onClick={() =>
+                          perform(
+                            `/schedules/${schedule.id}`,
+                            { active: !schedule.active },
+                            schedule.active
+                              ? '计划已暂停，已发布任务保持不变'
+                              : '计划已恢复，从下一个未来时刻继续',
+                            'PATCH',
+                          )
+                        }
+                      >
+                        {schedule.active ? <Pause size={15} /> : <Play size={15} />}
+                        {schedule.active ? '暂停' : '恢复'}
+                      </Button>
+                    ) : (
+                      <span className="muted">{partner.name}创建</span>
+                    )}
+                  </div>
+                ))
+              ) : (
+                <Empty icon={<CalendarDays size={25} />} title="一起养成小小的好习惯">
+                  每天散步、每周一次约会，设置重复计划后，到点就会自动发布任务。
+                </Empty>
+              )}
+              <MoreItems
+                shown={visibleCount}
+                total={data.schedules.length}
+                onMore={() => setVisibleCount((count) => count + 6)}
+              />
+              <div className="form-hint">
+                <CalendarDays size={14} />
+                日程固定使用北京时间，暂停只影响未来的发布。
+              </div>
+            </section>
+          )}
+          {page === 'notifications' && (
+            <section className="panel settings-panel wide-panel" id="notifications">
+              <div className="section-heading">
+                <div>
+                  <h2>
+                    <Bell size={20} />
+                    消息与提醒{unread > 0 && <span className="count-badge">{unread}</span>}
+                  </h2>
+                </div>
+                <Button
+                  className="ghost small"
+                  disabled={unread === 0}
+                  busy={busy}
+                  onClick={() => perform('/notifications/read', {}, '所有消息已标记为已读')}
+                >
+                  <CheckCheck size={16} />
+                  全部已读
+                </Button>
+              </div>
+              {data.notifications.length ? (
+                data.notifications.slice(0, visibleCount).map((notice) => (
+                  <article
+                    className={`notice-row ${notice.readAt ? '' : 'unread'}`}
+                    key={notice.id}
+                  >
+                    <span className="notice-dot" />
+                    <div>
+                      <h3>{notice.title}</h3>
+                      <p>{notice.body}</p>
+                      <small>{dateText(notice.createdAt, true)}</small>
+                    </div>
+                  </article>
+                ))
+              ) : (
+                <Empty icon={<Inbox size={25} />} title="这里会收到对方的小消息">
+                  任务进展、兑换和验收通知，都将在这里好好保存。
+                </Empty>
+              )}
+              <MoreItems
+                shown={visibleCount}
+                total={data.notifications.length}
+                onMore={() => setVisibleCount((count) => count + 6)}
+              />
+            </section>
+          )}
         </main>
       </div>
       <nav className="bottom-nav" aria-label="手机主导航">
         {navigation.map((item) => (
           <button
             key={item.id}
-            className={page === item.id ? 'active' : ''}
+            className={activeTab === item.id ? 'active' : ''}
+            aria-current={activeTab === item.id ? 'page' : undefined}
             onClick={() => navigate(item.id)}
           >
             <item.icon size={21} />
-            <span>
-              {item.id === 'home'
-                ? '今天'
-                : item.id === 'tasks'
-                  ? '约定'
-                  : item.id === 'shop'
-                    ? '心愿'
-                    : item.id === 'points'
-                      ? '积分'
-                      : '我们'}
-            </span>
-            {item.id === 'tasks' && reviewTasks.length > 0 && <i />}
+            <span>{item.label}</span>
+            {((item.id === 'tasks' && reviewTasks.length > 0) ||
+              (item.id === 'settings' && (unread > 0 || pendingOrders.length > 0))) && <i />}
           </button>
         ))}
       </nav>
 
       {modal?.type === 'task-new' && (
-        <Modal
-          title="写下一个小约定"
-          subtitle="把希望对方做的小事，变成一份认真对待的约定。"
-          onClose={closeModal}
-        >
+        <Modal title={modal.scheduled ? '新建计划' : '新建约定'} onClose={closeModal}>
           <TaskForm
+            scheduled={modal.scheduled}
             busy={busy}
             partner={partner.name}
             onSave={async (body, scheduled) => {
@@ -1468,11 +1273,7 @@ export default function App() {
         </Modal>
       )}
       {(modal?.type === 'product-new' || modal?.type === 'product-edit') && (
-        <Modal
-          title={modal.type === 'product-new' ? '放上一份小心意' : '编辑这份心意'}
-          subtitle="两个人都能兑换，使用自己的积分，由另一半来兑现。"
-          onClose={closeModal}
-        >
+        <Modal title={modal.type === 'product-new' ? '添加心愿' : '管理心愿'} onClose={closeModal}>
           <ProductForm
             key={selectedProduct?.id || 'new'}
             busy={busy}
@@ -1487,15 +1288,33 @@ export default function App() {
                 )
               ) {
                 closeModal();
-                setShopTab('products');
-                setShopFilter('all');
+                navigate('shop');
               }
             }}
           />
+          {modal.type === 'product-edit' && selectedProduct && (
+            <Button
+              busy={busy}
+              className="ghost wide"
+              onClick={async () => {
+                if (
+                  await perform(
+                    `/products/${selectedProduct.id}`,
+                    { active: !selectedProduct.active },
+                    selectedProduct.active ? '心愿已下架' : '心愿已上架',
+                    'PATCH',
+                  )
+                )
+                  closeModal();
+              }}
+            >
+              {selectedProduct.active ? '下架这个心愿' : '重新上架'}
+            </Button>
+          )}
         </Modal>
       )}
       {modal?.type === 'redeem' && selectedProduct && (
-        <Modal title="把这份心意带回家" onClose={closeModal}>
+        <Modal title="兑换心愿" onClose={closeModal}>
           <div className="redeem-preview">
             <span>{selectedProduct.emoji}</span>
             <h3>{selectedProduct.title}</h3>
@@ -1515,7 +1334,7 @@ export default function App() {
           <div className="form-hint">
             <Heart size={16} />
             本次扣除我的 {selectedProduct.price} 积分，由{partner.name}来兑现。
-            自己上架的心愿也能兑换；待兑现时取消，积分会退回。
+            待兑现时取消，积分会退回。
           </div>
           <Button
             busy={busy}
@@ -1534,8 +1353,7 @@ export default function App() {
                 )
               ) {
                 closeModal();
-                setShopTab('orders');
-                navigate('shop');
+                navigate('orders');
               }
             }}
           >
@@ -1552,6 +1370,35 @@ export default function App() {
       )}
       {toastView}
     </div>
+  );
+}
+
+function MoreItems({ shown, total, onMore }: { shown: number; total: number; onMore: () => void }) {
+  if (shown >= total) return null;
+  return (
+    <button className="list-more" onClick={onMore}>
+      再看 {Math.min(6, total - shown)} 条 <ChevronDown size={16} />
+    </button>
+  );
+}
+function SettingsLink({
+  icon: Icon,
+  label,
+  value,
+  onClick,
+}: {
+  icon: typeof Heart;
+  label: string;
+  value?: string;
+  onClick: () => void;
+}) {
+  return (
+    <button className="settings-link" onClick={onClick}>
+      <Icon size={20} />
+      <span>{label}</span>
+      {value && <span className="menu-value">{value}</span>}
+      <ChevronRight size={17} />
+    </button>
   );
 }
 
