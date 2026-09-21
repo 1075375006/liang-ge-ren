@@ -858,8 +858,15 @@ export async function buildApp(options: { wechatFetch?: typeof fetch } = {}) {
   app.post('/api/tasks/:id/submit', async (request) => {
     const { user, space, partner } = await spaceContext(request);
     const { submission } = z
-      .object({ submission: z.string().trim().min(1, '说说你是怎样完成的吧').max(3000) })
-      .parse(request.body);
+      .object({
+        submission: z
+          .string()
+          .max(3000)
+          .trim()
+          .optional()
+          .transform((value) => value || null),
+      })
+      .parse(request.body ?? {});
     const task = await transaction(async (client) => {
       const existing = await lockTask(client, idParam(request), space.id);
       if (existing.claimant_id !== user.id) fail(403, '只有领取人可以提交');
@@ -875,7 +882,7 @@ export async function buildApp(options: { wechatFetch?: typeof fetch } = {}) {
         userId: partner.id,
         spaceId: space.id,
         title: '有一件小事等你验收',
-        body: `${user.name} 已完成并提交「${existing.title}」，请来验收这份用心。\n完成说明：${submission}\n通过验收后，${existing.reward} 积分将奖励给对方。`,
+        body: `${user.name} 已完成并提交「${existing.title}」，请来验收这份用心。${submission ? `\n完成说明：${submission}` : ''}\n通过验收后，${existing.reward} 积分将奖励给对方。`,
         kind: 'TASK_SUBMITTED',
         actionPath: `/?page=tasks&task=${existing.id}`,
       });

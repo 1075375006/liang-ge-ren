@@ -756,7 +756,16 @@ test('自己的心愿、完整邮件通知与个人模板偏好', async (t) => {
       queued = await mails(task.id);
       assert.equal(queued.filter((mail) => mail.kind === 'TASK_CLAIMED').length, 1);
       assert.equal(queued.find((mail) => mail.kind === 'TASK_CLAIMED')!.user_id, reviewer.id);
-      ok(await api('POST', `/tasks/${task.id}/submit`, claimant, { submission: '已经完成啦 <3' }));
+      const submitted = await api('POST', `/tasks/${task.id}/submit`, claimant, {
+        submission: '  已经完成啦 <3  ',
+      });
+      ok(submitted);
+      assert.equal(submitted.body.task.submission, '已经完成啦 <3');
+      assert.equal(
+        (await database.query('SELECT submission FROM tasks WHERE id=$1', [task.id])).rows[0]
+          .submission,
+        '已经完成啦 <3',
+      );
       ok(
         await api('POST', `/tasks/${task.id}/review`, reviewer, {
           approve: true,
@@ -766,11 +775,99 @@ test('自己的心愿、完整邮件通知与个人模板偏好', async (t) => {
       ok(await api('POST', `/tasks/${task.id}/review`, reviewer, { approve: true }));
       queued = await mails(task.id);
       assert.equal(queued.length, 4);
-      assert.equal(queued.find((mail) => mail.kind === 'TASK_SUBMITTED')!.user_id, reviewer.id);
+      const submittedMail = queued.find((mail) => mail.kind === 'TASK_SUBMITTED')!;
+      assert.equal(submittedMail.user_id, reviewer.id);
+      assert.match(submittedMail.body, /完成说明：已经完成啦 <3/);
+      assert.match(
+        (
+          await database.query('SELECT body FROM notifications WHERE id=$1', [
+            submittedMail.notification_id,
+          ])
+        ).rows[0].body,
+        /完成说明：已经完成啦 <3/,
+      );
       const approved = queued.find((mail) => mail.kind === 'TASK_APPROVED')!;
       assert.equal(approved.user_id, claimant.id);
       assert.match(approved.body, /7 积分已到账/);
     }
+  });
+
+  await t.test('完成说明可省略或留空，通知自然且仍须另一人验收才入账', async () => {
+    for (const payload of [undefined, {}, { submission: '' }, { submission: ' \n\t ' }]) {
+      const initial = await balance(a);
+      const task = await newTask('RACE', 7, a);
+      ok(await api('POST', `/tasks/${task.id}/claim`, a, {}));
+      const submitted = await api('POST', `/tasks/${task.id}/submit`, a, payload);
+      ok(submitted);
+      assert.equal(submitted.body.task.status, 'SUBMITTED');
+      assert.equal(submitted.body.task.submission, null);
+      assert.ok(submitted.body.task.submittedAt);
+      assert.equal(
+        (await database.query('SELECT submission FROM tasks WHERE id=$1', [task.id])).rows[0]
+          .submission,
+        null,
+      );
+      assert.equal(await balance(a), initial);
+      assert.equal(
+        (await api('POST', `/tasks/${task.id}/review`, a, { approve: true })).status,
+        403,
+      );
+      assert.equal((await api('POST', `/tasks/${task.id}/submit`, a, {})).status, 409);
+      const notices = (await mails(task.id)).filter((mail) => mail.kind === 'TASK_SUBMITTED');
+      assert.equal(notices.length, 1);
+      assert.equal(notices[0].user_id, b.id);
+      const inApp = (
+        await database.query('SELECT body,user_id FROM notifications WHERE id=$1', [
+          notices[0].notification_id,
+        ])
+      ).rows[0];
+      assert.equal(inApp.user_id, b.id);
+      for (const body of [notices[0].body, inApp.body]) {
+        assert.match(body, /已完成并提交「一起认真生活」/);
+        assert.match(body, /通过验收后，7 积分/);
+        assert.doesNotMatch(body, /完成说明|undefined|null/);
+      }
+      ok(await api('POST', `/tasks/${task.id}/review`, b, { approve: true }));
+      assert.equal(await balance(a), initial + 7);
+    }
+  });
+
+  await t.test('可选完成说明仍拒绝非字符串和超长内容，3000 字符可提交', async () => {
+    const task = await newTask('RACE', 7, a);
+    ok(await api('POST', `/tasks/${task.id}/claim`, a, {}));
+    for (const submission of [null, false, 1, [], {}, '好'.repeat(3001), ' '.repeat(3001)]) {
+      assert.equal((await api('POST', `/tasks/${task.id}/submit`, a, { submission })).status, 400);
+    }
+    assert.equal(
+      (await database.query('SELECT status FROM tasks WHERE id=$1', [task.id])).rows[0].status,
+      'CLAIMED',
+    );
+    assert.equal((await mails(task.id)).filter((mail) => mail.kind === 'TASK_SUBMITTED').length, 0);
+    const submitted = await api('POST', `/tasks/${task.id}/submit`, a, {
+      submission: '好'.repeat(3000),
+    });
+    ok(submitted);
+    assert.equal(submitted.body.task.submission, '好'.repeat(3000));
+  });
+
+  await t.test('省略完成说明不能绕过领取者、空间和截止时间限制', async () => {
+    const task = await newTask('RACE', 7, a);
+    ok(await api('POST', `/tasks/${task.id}/claim`, a, {}));
+    assert.equal((await api('POST', `/tasks/${task.id}/submit`, b, {})).status, 403);
+    assert.equal((await api('POST', `/tasks/${task.id}/submit`, c, {})).status, 404);
+    await database.query("UPDATE tasks SET due_at=now()-interval '1 minute' WHERE id=$1", [
+      task.id,
+    ]);
+    assert.equal((await api('POST', `/tasks/${task.id}/submit`, a, {})).status, 409);
+    const stored = (
+      await database.query('SELECT status,submission,submitted_at FROM tasks WHERE id=$1', [
+        task.id,
+      ])
+    ).rows[0];
+    assert.equal(stored.status, 'CLAIMED');
+    assert.equal(stored.submission, null);
+    assert.equal(stored.submitted_at, null);
+    assert.equal((await mails(task.id)).filter((mail) => mail.kind === 'TASK_SUBMITTED').length, 0);
   });
 
   await t.test('自己发布的心愿可以兑换，由另一半兑现，退款和重复请求仍防重', async () => {

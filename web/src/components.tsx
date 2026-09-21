@@ -36,6 +36,50 @@ export function Button({
     </button>
   );
 }
+
+export function PageDoodle({ kind }: { kind: 'tasks' | 'shop' | 'settings' }) {
+  return (
+    <svg className="page-doodle" viewBox="0 0 64 54" fill="none" aria-hidden="true">
+      {kind === 'shop' ? (
+        <g stroke="#ab7554" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M14 24h36v22a4 4 0 0 1-4 4H18a4 4 0 0 1-4-4Z" fill="#ffecd0" />
+          <rect x="11" y="18" width="42" height="10" rx="3" fill="#fbd6ca" />
+          <path
+            d="M32 18c-13 0-16-11-9-11 5 0 9 7 9 11Zm0 0c13 0 16-11 9-11-5 0-9 7-9 11Z"
+            fill="#fbd6ca"
+          />
+          <path d="M28 18h8v10h-8z" fill="#e9acac" />
+          <path d="M23 36v2m18-2v2m-13 3q4 4 8 0" />
+          <path d="M19 41h3m20 0h3" stroke="#e9b0a6" strokeWidth="3" />
+        </g>
+      ) : kind === 'settings' ? (
+        <g stroke="#ad7480" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M7 31C5 18 17 13 25 18c8 5 10 21 1 26C16 49 9 43 7 31Z" fill="#f9d1dc" />
+          <path d="M34 21C39 10 54 14 57 25c4 12-3 21-13 19-11-1-15-13-10-23Z" fill="#fbe5bf" />
+          <path d="M15 29v2m9-3v2m17-2v2m9 1v2m-34 3q4 3 7-1m19 2q4 3 7-1" />
+          <path d="M29 10c-5-5-10 1 2 7 11-8 4-12-2-7Z" fill="#df8b9e" stroke="none" />
+          <path d="m12 36 2 0m36 4 2 0" stroke="#e9aaaa" strokeWidth="3" />
+        </g>
+      ) : (
+        <g stroke="#ba7185" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <path
+            d="M31 47C7 35 5 21 14 15c6-4 13-2 17 4 4-7 13-9 19-3 10 10-1 25-19 31Z"
+            fill="#f9ccd7"
+          />
+          <path d="M23 28v2m16-2v2m-13 5q5 5 10 0" />
+          <path d="M18 34h3m21 0h3" stroke="#eaa0b5" strokeWidth="3" />
+          <path
+            d="m53 5 1.7 4.3L59 11l-4.3 1.7L53 17l-1.7-4.3L47 11l4.3-1.7Z"
+            fill="#f4d89e"
+            stroke="#c99d58"
+            strokeWidth="1.2"
+          />
+        </g>
+      )}
+    </svg>
+  );
+}
+
 export function Empty({
   icon = <Heart />,
   title,
@@ -551,28 +595,33 @@ export function TaskDetail({
             void onAction('submit', { submission });
           }}
         >
-          <label>
-            告诉对方，你是怎么完成的
-            <textarea
-              value={submission}
-              onChange={(event) => setSubmission(event.target.value)}
-              rows={3}
-              maxLength={2000}
-              required
-              placeholder="今天的小小成果…"
-            />
-          </label>
+          <details className="form-options completion-note">
+            <summary>
+              给对方留句话<span>选填</span>
+            </summary>
+            <label className="completion-note-body">
+              <textarea
+                aria-label="完成留言（选填）"
+                value={submission}
+                onChange={(event) => setSubmission(event.target.value)}
+                rows={2}
+                maxLength={3000}
+                placeholder="想说点什么，就写在这里。"
+              />
+            </label>
+          </details>
           <Button type="submit" busy={busy} className="primary wide">
             <CheckCheck size={18} />
-            完成啦，交给对方验收
+            完成啦
           </Button>
+          <p className="completion-hint">交给对方确认，积分就会到账。</p>
           <Button
             type="button"
             busy={busy}
-            className="subtle wide"
+            className="ghost wide"
             onClick={() => onAction('release')}
           >
-            暂时做不了，放回任务池
+            暂时放回
           </Button>
         </form>
       )}

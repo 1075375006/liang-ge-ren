@@ -31,7 +31,16 @@ import {
   Sparkles,
   X,
 } from 'lucide-react';
-import { Button, Empty, Modal, ProductForm, TaskCard, TaskDetail, TaskForm } from './components';
+import {
+  Button,
+  Empty,
+  Modal,
+  PageDoodle,
+  ProductForm,
+  TaskCard,
+  TaskDetail,
+  TaskForm,
+} from './components';
 import { WeChatAccountCard } from './WeChatAccountCard';
 import { MailTemplatePicker } from './MailTemplatePicker';
 import {
@@ -577,7 +586,12 @@ export default function App() {
           )}
           <div className="page-heading">
             <div>
-              <h1>{pageCopy[page].title}</h1>
+              <h1>
+                {pageCopy[page].title}
+                {(page === 'tasks' || page === 'shop' || page === 'settings') && (
+                  <PageDoodle kind={page} />
+                )}
+              </h1>
               {pageCopy[page].subtitle && <p>{pageCopy[page].subtitle}</p>}
             </div>
             {page === 'tasks' ? (

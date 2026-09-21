@@ -15,7 +15,7 @@
 
 - `GET /tasks` → `{tasks, schedules}`。Task：`id,title,description,reward,mode:'ASSIGNED'|'RACE',status,creatorId,assignedTo,claimantId,submission,reviewNote,dueAt,createdAt,submittedAt,approvedAt,scheduleId`。任务含已结束记录；任务与计划均按创建时间倒序各最多 200 条。
 - `POST /tasks {title,description,reward,mode,dueAt?}`，指定任务自动指向伴侣。
-- `POST /tasks/:id/claim {}`；`POST /tasks/:id/release {}`；`POST /tasks/:id/submit {submission}`；`POST /tasks/:id/review {approve:boolean,note?:string}`；`POST /tasks/:id/cancel {}`。
+- `POST /tasks/:id/claim {}`；`POST /tasks/:id/release {}`；`POST /tasks/:id/submit {submission?:string}`；`POST /tasks/:id/review {approve:boolean,note?:string}`；`POST /tasks/:id/cancel {}`。完成说明可不填，最多 3000 字符；省略、空字符串或纯空白均保存为 `submission:null`，有内容时去除首尾空白。未填写时通知不展示完成说明。仍须由领取人提交、另一人验收，验收通过后才发放积分。
 - `POST /schedules {title,description,reward,mode,kind:'ONCE'|'DAILY'|'WEEKLY',runAt?:ISO,time?:'HH:mm',weekday?:1..7,durationHours:1..168}`。
 - `PATCH /schedules/:id {active:boolean}`，仅计划发布者可暂停或恢复。Schedule：上述创建字段和 `id,creatorId,active,nextRunAt,createdAt`。
 
