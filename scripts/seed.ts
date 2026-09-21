@@ -1,13 +1,13 @@
 import 'dotenv/config';
 import { buildApp } from '../server/app.js';
-import { migrate, pool, query } from '../server/db.js';
+import { migrate, closePool, query } from '../server/db.js';
 
 if (process.env.NODE_ENV === 'production')
   throw new Error('演示数据仅供本地开发，生产环境禁止执行。');
 await migrate();
 if ((await query('SELECT count(*) AS n FROM users')).rows[0].n !== '0') {
   console.log('数据库已有用户，未添加或修改演示数据。');
-  await pool.end();
+  await closePool();
   process.exit(0);
 }
 const app = await buildApp();
@@ -157,5 +157,5 @@ try {
   console.log(`演示密码：${password}`);
 } finally {
   await app.close();
-  await pool.end();
+  await closePool();
 }

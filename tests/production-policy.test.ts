@@ -1,3 +1,4 @@
+import { dropTestDatabase } from './database-fixture.js';
 import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
@@ -99,8 +100,8 @@ after(async () => {
   try {
     if (app) await app.close();
     if (smtp) await new Promise<void>((resolve) => smtp!.close(resolve));
-    if (database) await database.pool.end();
-    if (created) await admin.query(`DROP DATABASE "${databaseName}" WITH (FORCE)`);
+    if (database) await database.closePool();
+    if (created) await dropTestDatabase(admin, databaseName);
     await admin.end();
   } finally {
     for (const key of managedKeys) {

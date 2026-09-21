@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { pool, query } from '../server/db.js';
+import { closePool, query } from '../server/db.js';
 
 try {
   // One statement observes a single database snapshot while other users keep working.
@@ -30,5 +30,5 @@ try {
   console.error('积分对账无法完成，请检查数据库连接与数据表。未修改任何数据。');
   process.exitCode = 1;
 } finally {
-  await pool.end();
+  await closePool();
 }

@@ -12,6 +12,32 @@ export const pool = new pg.Pool({
   idle_in_transaction_session_timeout: 30_000,
 });
 
+// pg-pool can resolve end() before its clients' sockets have closed. Keep an
+// explicit shutdown barrier for worker/server exits and isolated test teardown.
+const connections = new Map<PoolClient, Promise<void>>();
+pool.on('connect', (client) => {
+  const ended = new Promise<void>((resolve) => {
+    client.once('end', () => {
+      connections.delete(client);
+      resolve();
+    });
+  });
+  connections.set(client, ended);
+});
+pool.on('error', (error) => {
+  const value = (error as Error & { code?: unknown }).code;
+  const code = typeof value === 'string' && /^[A-Z0-9_]+$/.test(value) ? value : 'CONNECTION_LOST';
+  console.error(`[db] 空闲连接断开（${code}），后续请求将重新连接`);
+});
+
+let closing: Promise<void> | undefined;
+export function closePool(): Promise<void> {
+  return (closing ??= (async () => {
+    await pool.end();
+    await Promise.all([...connections.values()]);
+  })());
+}
+
 export const query = <T extends QueryResultRow = QueryResultRow>(
   text: string,
   values: unknown[] = [],
@@ -19,16 +45,23 @@ export const query = <T extends QueryResultRow = QueryResultRow>(
 
 export async function transaction<T>(operation: (client: PoolClient) => Promise<T>): Promise<T> {
   const client = await pool.connect();
+  let connectionError: Error | undefined;
+  const onConnectionError = (error: Error) => {
+    connectionError = error;
+  };
+  client.on('error', onConnectionError);
   try {
     await client.query('BEGIN');
     const result = await operation(client);
+    if (connectionError) throw connectionError;
     await client.query('COMMIT');
     return result;
   } catch (error) {
-    await client.query('ROLLBACK');
+    await client.query('ROLLBACK').catch(() => {});
     throw error;
   } finally {
-    client.release();
+    client.removeListener('error', onConnectionError);
+    client.release(connectionError);
   }
 }
 

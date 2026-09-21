@@ -1,13 +1,13 @@
 import 'dotenv/config';
 import { buildApp } from './app.js';
-import { pool } from './db.js';
+import { closePool } from './db.js';
 import { validateProductionConfig } from './config.js';
 validateProductionConfig();
 
 const app = await buildApp();
 const shutdown = async () => {
   await app.close();
-  await pool.end();
+  await closePool();
 };
 process.once('SIGINT', () => {
   void shutdown().then(() => process.exit(0));
@@ -24,6 +24,6 @@ try {
 } catch (error) {
   app.log.error(error);
   console.error('服务启动失败，请检查端口和环境配置。');
-  await pool.end();
+  await closePool();
   process.exitCode = 1;
 }

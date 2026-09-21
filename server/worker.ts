@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import { setTimeout as delay } from 'node:timers/promises';
-import { pool } from './db.js';
+import { closePool } from './db.js';
 import { tick } from './jobs.js';
 
 const controller = new AbortController();
@@ -33,6 +33,6 @@ try {
     }
   }
 } finally {
-  await pool.end();
+  await closePool();
   console.info('[worker] 工作进程已退出');
 }

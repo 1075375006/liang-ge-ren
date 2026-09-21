@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { pool, query } from '../server/db.js';
+import { closePool, query } from '../server/db.js';
 
 try {
   const result = await query<{ healthy: boolean }>(`
@@ -14,5 +14,5 @@ try {
   console.error('无法读取后台工作进程心跳，请检查数据库连接。');
   process.exitCode = 1;
 } finally {
-  await pool.end();
+  await closePool();
 }

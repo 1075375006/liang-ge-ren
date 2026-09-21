@@ -19,7 +19,7 @@ test('真实 Fastify 请求日志不包含微信状态、授权码或请求凭�
   const source = `
     import assert from 'node:assert/strict';
     const { buildApp } = await import(${JSON.stringify(appModule)});
-    const { pool } = await import(${JSON.stringify(dbModule)});
+    const { closePool } = await import(${JSON.stringify(dbModule)});
     const app = await buildApp();
     try {
       const response = await app.inject({
@@ -34,7 +34,7 @@ test('真实 Fastify 请求日志不包含微信状态、授权码或请求凭�
       assert.equal(response.headers.location, '/?wechat=error&reason=invalid_state');
     } finally {
       await app.close();
-      await pool.end();
+      await closePool();
     }
   `;
   const { stdout, stderr } = await execFileAsync(

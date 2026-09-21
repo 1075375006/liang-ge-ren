@@ -1,3 +1,4 @@
+import { dropTestDatabase } from './database-fixture.js';
 import { after, before, beforeEach, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -118,8 +119,8 @@ beforeEach(async () => {
   await database.query('DELETE FROM maintenance_runs');
 });
 after(async () => {
-  if (database) await database.pool.end();
-  if (created) await admin.query(`DROP DATABASE "${databaseName}" WITH (FORCE)`);
+  if (database) await database.closePool();
+  if (created) await dropTestDatabase(admin, databaseName);
   await admin.end();
 });
 async function token(kind: 'email_tokens' | 'password_reset_tokens', expiration: Date) {
