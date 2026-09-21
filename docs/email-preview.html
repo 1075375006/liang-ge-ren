@@ -1,0 +1,716 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; frame-src 'self' about:; connect-src 'none'; form-action 'none'; object-src 'none'; base-uri 'none'"
+    />
+    <title>两个人 · 邮件样式预览册</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --ink: #4b3940;
+        --muted: #95838b;
+        --rose: #ad4b68;
+        --line: #eadfe3;
+        --paper: #fffdfb;
+        --theme-accent: #b7395d;
+        --theme-background: #fff0f3;
+        --preview-width: 640px;
+        font:
+          14px/1.65 -apple-system,
+          BlinkMacSystemFont,
+          'Segoe UI',
+          'Microsoft YaHei',
+          sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: #f9f5f3;
+        color: var(--ink);
+      }
+      button {
+        font: inherit;
+        color: inherit;
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+      }
+      button:focus-visible {
+        outline: 3px solid #ac5b7b;
+        outline-offset: 4px;
+      }
+      h1,
+      h2,
+      p {
+        margin: 0;
+      }
+      .page {
+        max-width: 1380px;
+        margin: 0 auto;
+        padding: 34px 40px 28px;
+      }
+      .topline {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 20px;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 11px;
+      }
+      .brand-heart {
+        display: grid;
+        place-items: center;
+        width: 40px;
+        height: 40px;
+        border-radius: 13px;
+        background: #b65c77;
+        color: #fff3f5;
+        font-size: 27px;
+        transform: rotate(-5deg);
+      }
+      .brand strong {
+        display: block;
+        font-size: 20px;
+        letter-spacing: 2px;
+      }
+      .brand small {
+        display: block;
+        color: #b19aa4;
+        font-size: 8px;
+        letter-spacing: 2px;
+      }
+      .sample-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        border: 1px solid #e6d9df;
+        border-radius: 99px;
+        padding: 7px 12px;
+        color: #9c7a8a;
+        background: #fffafc;
+        font-size: 11px;
+        white-space: nowrap;
+      }
+      .sample-badge::before {
+        content: '';
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: #b58b9a;
+      }
+      .intro {
+        padding: 40px 0 27px;
+      }
+      .eyebrow {
+        color: #b094a0;
+        font-size: 10px;
+        letter-spacing: 2.5px;
+      }
+      h1 {
+        font-size: clamp(27px, 3vw, 38px);
+        font-weight: 600;
+        letter-spacing: 1px;
+        line-height: 1.45;
+        margin: 9px 0 10px;
+      }
+      h1 span {
+        color: #b16881;
+      }
+      .intro > p {
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .workspace {
+        display: grid;
+        grid-template-columns: 320px minmax(0, 1fr);
+        gap: 25px;
+        align-items: start;
+      }
+      .theme-panel,
+      .preview-panel {
+        background: var(--paper);
+        border: 1px solid var(--line);
+        border-radius: 20px;
+        overflow: hidden;
+        box-shadow: 0 10px 30px #70475304;
+      }
+      .theme-panel {
+        padding: 23px 19px 20px;
+      }
+      .panel-heading {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+        padding: 0 3px 17px;
+      }
+      .panel-heading h2 {
+        font-size: 14px;
+        font-weight: 600;
+      }
+      .panel-heading > span {
+        color: #b29aa5;
+        font-size: 10px;
+      }
+      .theme-grid {
+        display: grid;
+        gap: 10px;
+      }
+      .theme-option {
+        width: 100%;
+        min-width: 0;
+        display: grid;
+        grid-template-columns: 41px minmax(0, 1fr) 16px;
+        align-items: center;
+        gap: 11px;
+        border: 1px solid #ede4e7;
+        border-radius: 13px;
+        padding: 14px 12px;
+        background: #fff;
+        text-align: left;
+        transition:
+          border-color 0.15s,
+          box-shadow 0.15s;
+      }
+      .theme-option:hover {
+        border-color: #cfa9b8;
+      }
+      .theme-option.active {
+        border-color: var(--card-accent);
+        box-shadow: 0 0 0 2px #b6506b0b;
+      }
+      .theme-swatch {
+        display: grid;
+        place-items: center;
+        width: 41px;
+        height: 46px;
+        background: var(--card-background);
+        color: var(--card-accent);
+        border-radius: 10px;
+        font-size: 26px;
+      }
+      .theme-copy {
+        min-width: 0;
+      }
+      .theme-copy strong {
+        display: block;
+        font-size: 13px;
+        font-weight: 600;
+      }
+      .theme-copy small {
+        display: block;
+        margin-top: 4px;
+        color: var(--muted);
+        font-size: 10px;
+        line-height: 1.7;
+        overflow-wrap: anywhere;
+      }
+      .theme-check {
+        color: #a14e6d;
+        font-size: 16px;
+        opacity: 0;
+      }
+      .theme-option.active .theme-check {
+        opacity: 1;
+      }
+      .theme-note {
+        padding: 17px 4px 0;
+        color: #a28a96;
+        font-size: 10px;
+        line-height: 1.9;
+      }
+      .preview-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 18px 22px;
+        border-bottom: 1px solid var(--line);
+      }
+      .preview-name {
+        display: flex;
+        align-items: center;
+        gap: 11px;
+        min-width: 0;
+      }
+      #selected-emoji {
+        display: grid;
+        place-items: center;
+        width: 36px;
+        height: 36px;
+        background: var(--theme-background);
+        border-radius: 10px;
+        font-size: 23px;
+      }
+      #selected-name {
+        display: block;
+        font-size: 14px;
+        font-weight: 600;
+      }
+      .preview-name small {
+        display: block;
+        color: #a58d99;
+        font-size: 10px;
+        margin-top: 2px;
+      }
+      .width-controls {
+        display: flex;
+        padding: 4px;
+        gap: 3px;
+        background: #f4edef;
+        border-radius: 10px;
+      }
+      .width-controls button {
+        border: 0;
+        padding: 6px 10px;
+        border-radius: 7px;
+        background: none;
+        color: #a48b97;
+        font-size: 11px;
+        white-space: nowrap;
+      }
+      .width-controls button.active {
+        background: #fff;
+        color: #a45c77;
+        box-shadow: 0 1px 5px #70475309;
+      }
+      .preview-stage {
+        padding: 22px;
+        display: flex;
+        justify-content: center;
+        background: #f1ecea;
+      }
+      .email-frame {
+        display: block;
+        width: min(100%, var(--preview-width));
+        height: 950px;
+        border: 1px solid #e5d9df;
+        border-radius: 14px;
+        background: var(--theme-background);
+        box-shadow: 0 12px 28px #66424c0c;
+        transition: width 0.2s;
+      }
+      .preview-footer {
+        padding: 12px 19px;
+        color: #a18c96;
+        font-size: 10px;
+        text-align: center;
+        border-top: 1px solid var(--line);
+      }
+      .footer {
+        color: #b29ba6;
+        font-size: 10px;
+        text-align: center;
+        padding: 27px 12px 0;
+      }
+      .footer span {
+        margin: 0 7px;
+        color: #bd93a4;
+      }
+      .no-script {
+        padding: 15px;
+        color: #975873;
+      }
+      @media (max-width: 1000px) {
+        .page {
+          padding: 28px 24px;
+        }
+        .workspace {
+          grid-template-columns: 265px minmax(0, 1fr);
+          gap: 17px;
+        }
+        .theme-panel {
+          padding: 19px 13px;
+        }
+        .theme-option {
+          grid-template-columns: 34px minmax(0, 1fr) 12px;
+          gap: 8px;
+          padding: 12px 9px;
+        }
+        .theme-swatch {
+          width: 34px;
+          height: 41px;
+          font-size: 23px;
+        }
+        .preview-top {
+          padding: 17px 14px;
+        }
+        .preview-stage {
+          padding: 15px;
+        }
+        .email-frame {
+          height: 1110px;
+        }
+      }
+      @media (max-width: 760px) {
+        .page {
+          padding: 24px 19px;
+        }
+        .intro {
+          padding: 29px 0 23px;
+        }
+        .workspace {
+          grid-template-columns: 1fr;
+          gap: 20px;
+        }
+        .theme-panel {
+          padding: 20px 16px 15px;
+        }
+        .theme-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 10px;
+        }
+        .theme-option {
+          grid-template-columns: 34px minmax(0, 1fr);
+          align-items: start;
+          position: relative;
+          padding: 12px;
+        }
+        .theme-check {
+          position: absolute;
+          right: 9px;
+          top: 7px;
+          font-size: 13px;
+        }
+        .theme-copy {
+          padding-top: 2px;
+        }
+        .theme-copy strong {
+          font-size: 12px;
+          padding-right: 8px;
+        }
+        .theme-copy small {
+          font-size: 10px;
+          margin-top: 5px;
+        }
+        .theme-note {
+          padding-top: 13px;
+        }
+        .preview-stage {
+          padding: 13px;
+        }
+        .email-frame {
+          height: 1080px;
+        }
+        .width-controls button {
+          padding: 6px 8px;
+        }
+      }
+      @media (max-width: 430px) {
+        .page {
+          padding: 20px 13px;
+        }
+        .brand strong {
+          font-size: 18px;
+        }
+        .brand-heart {
+          width: 35px;
+          height: 35px;
+          font-size: 24px;
+        }
+        .sample-badge {
+          font-size: 10px;
+          padding: 6px 9px;
+          gap: 6px;
+        }
+        .intro > p {
+          font-size: 12px;
+          line-height: 1.9;
+        }
+        .theme-panel {
+          padding: 17px 12px 14px;
+        }
+        .theme-option {
+          display: flex;
+          flex-direction: column;
+          gap: 7px;
+        }
+        .theme-swatch {
+          width: 32px;
+          height: 35px;
+          font-size: 21px;
+        }
+        .theme-copy small {
+          line-height: 1.65;
+        }
+        .preview-top {
+          flex-wrap: wrap;
+          gap: 11px;
+        }
+        .preview-name {
+          flex: 1 1 150px;
+        }
+        .preview-stage {
+          padding: 0;
+        }
+        .email-frame {
+          border: 0;
+          border-radius: 0;
+          height: 1150px;
+        }
+        .preview-footer {
+          font-size: 9px;
+          padding: 11px;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          transition: none !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <header class="topline">
+        <div class="brand">
+          <span class="brand-heart" aria-hidden="true">♡</span>
+          <div><strong>两个人。</strong><small>BETTER, TOGETHER</small></div>
+        </div>
+        <span class="sample-badge">仅预览 · 不发送邮件</span>
+      </header>
+      <section class="intro" aria-labelledby="page-title">
+        <span class="eyebrow">A LITTLE LETTER, JUST FOR YOU</span>
+        <h1 id="page-title">给日常的小提醒，<span>选一张信纸。</span></h1>
+        <p>六种颜色，六份心情。点选喜欢的样式，看看它来到邮箱时的模样。</p>
+      </section>
+      <div class="workspace">
+        <section class="theme-panel" aria-labelledby="theme-heading">
+          <div class="panel-heading">
+            <h2 id="theme-heading">选择邮件样式</h2>
+            <span>6 款小心意</span>
+          </div>
+          <div class="theme-grid" role="group" aria-label="六种邮件主题">
+            <button
+              type="button"
+              class="theme-option active"
+              data-theme="strawberry"
+              aria-pressed="true"
+              style="--card-accent: #b7395d; --card-background: #fff0f3"
+            >
+              <span class="theme-swatch" aria-hidden="true">🍓</span>
+              <span class="theme-copy"
+                ><strong>草莓心事</strong
+                ><small>莓果粉与小爱心，把日常写成一封甜甜的信。</small></span
+              >
+              <span class="theme-check" aria-hidden="true">✓</span>
+            </button>
+            <button
+              type="button"
+              class="theme-option"
+              data-theme="cream"
+              aria-pressed="false"
+              style="--card-accent: #855723; --card-background: #fff6e7"
+            >
+              <span class="theme-swatch" aria-hidden="true">🧁</span>
+              <span class="theme-copy"
+                ><strong>奶油来信</strong
+                ><small>暖奶油色的小信纸，装下一点温柔和小确幸。</small></span
+              >
+              <span class="theme-check" aria-hidden="true">✓</span>
+            </button>
+            <button
+              type="button"
+              class="theme-option"
+              data-theme="mint"
+              aria-pressed="false"
+              style="--card-accent: #26715a; --card-background: #edf8f1"
+            >
+              <span class="theme-swatch" aria-hidden="true">🌿</span>
+              <span class="theme-copy"
+                ><strong>薄荷花园</strong
+                ><small>清新的绿叶边框，陪你们慢慢收集好日常。</small></span
+              >
+              <span class="theme-check" aria-hidden="true">✓</span>
+            </button>
+            <button
+              type="button"
+              class="theme-option"
+              data-theme="sky"
+              aria-pressed="false"
+              style="--card-accent: #2f6597; --card-background: #edf6ff"
+            >
+              <span class="theme-swatch" aria-hidden="true">☁️</span>
+              <span class="theme-copy"
+                ><strong>云朵邮局</strong
+                ><small>把小约定寄上蓝天，让柔软的云朵送到身边。</small></span
+              >
+              <span class="theme-check" aria-hidden="true">✓</span>
+            </button>
+            <button
+              type="button"
+              class="theme-option"
+              data-theme="lavender"
+              aria-pressed="false"
+              style="--card-accent: #7655a3; --card-background: #f4effb"
+            >
+              <span class="theme-swatch" aria-hidden="true">🪻</span>
+              <span class="theme-copy"
+                ><strong>紫色花笺</strong
+                ><small>淡紫花朵与虚线信封，留住认真对待彼此的心意。</small></span
+              >
+              <span class="theme-check" aria-hidden="true">✓</span>
+            </button>
+            <button
+              type="button"
+              class="theme-option"
+              data-theme="night"
+              aria-pressed="false"
+              style="--card-accent: #e8c780; --card-background: #131a30"
+            >
+              <span class="theme-swatch" aria-hidden="true">🌙</span>
+              <span class="theme-copy"
+                ><strong>晚安星河</strong
+                ><small>深蓝夜空和暖金小星星，把今天的心意悄悄点亮。</small></span
+              >
+              <span class="theme-check" aria-hidden="true">✓</span>
+            </button>
+          </div>
+          <p class="theme-note">
+            这里展示同一封任务验收提醒。实际邮件会带上对应的任务、兑换或验证信息；两个人可以各自选择喜欢的样式。
+          </p>
+        </section>
+        <section class="preview-panel" aria-labelledby="selected-name">
+          <div class="preview-top">
+            <div class="preview-name">
+              <span id="selected-emoji" aria-hidden="true">🍓</span>
+              <div>
+                <strong id="selected-name" aria-live="polite">草莓心事</strong
+                ><small>任务验收邮件 · 示例内容</small>
+              </div>
+            </div>
+            <div class="width-controls" role="group" aria-label="预览阅读宽度">
+              <button type="button" data-width="640" class="active" aria-pressed="true">宽屏</button
+              ><button type="button" data-width="375" aria-pressed="false">手机</button>
+            </div>
+          </div>
+          <div class="preview-stage">
+            <iframe
+              id="email-preview"
+              class="email-frame"
+              title="草莓心事邮件示例"
+              sandbox=""
+              referrerpolicy="no-referrer"
+            ></iframe>
+          </div>
+          <div class="preview-footer">
+            示例内容仅供查看。切换样式不会发送邮件，也不会更改账号设置。
+          </div>
+        </section>
+      </div>
+      <noscript
+        ><p class="no-script">
+          请在浏览器中允许此页面运行 JavaScript，以切换六款邮件预览。
+        </p></noscript
+      >
+      <footer class="footer">两个人<span>♡</span>把喜欢，放进每一天</footer>
+    </main>
+    <script type="application/json" id="theme-data">
+      [
+        {
+          "id": "strawberry",
+          "name": "草莓心事",
+          "description": "莓果粉与小爱心，把日常写成一封甜甜的信。",
+          "emoji": "🍓",
+          "accent": "#B7395D",
+          "background": "#FFF0F3",
+          "html": "\u003c!DOCTYPE html>\n\u003chtml lang=\"zh-CN\">\n\u003chead>\u003cmeta charset=\"UTF-8\">\u003cmeta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\u003cmeta name=\"color-scheme\" content=\"light\">\u003ctitle>一份认真完成的小约定，等你验收\u003c/title>\u003c/head>\n\u003cbody data-email-theme=\"strawberry\" style=\"margin:0;padding:0;background-color:#FFF0F3;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Microsoft YaHei',Arial,sans-serif;color:#51313C;-webkit-text-size-adjust:100%;\">\n  \u003cdiv style=\"display:none;max-height:0;overflow:hidden;opacity:0;mso-hide:all;\">一份用心已经交到你手里，记得回应对方的认真呀。\u003c/div>\n  \u003ctable role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" bgcolor=\"#FFF0F3\" style=\"width:100%;background-color:#FFF0F3;\">\n    \u003ctr>\u003ctd align=\"center\" style=\"padding:28px 12px;\">\n      \u003c!--[if mso]>\u003ctable role=\"presentation\" width=\"600\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\">\u003ctr>\u003ctd>\u003c![endif]-->\n      \u003ctable role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" style=\"width:100%;max-width:600px;\">\n        \u003ctr>\u003ctd align=\"center\" style=\"padding:0 12px 20px;color:#51313C;font-size:20px;font-weight:700;letter-spacing:2px;\">♡ &nbsp;两个人\u003c/td>\u003c/tr>\n        \u003ctr>\u003ctd bgcolor=\"#FFFFFF\" style=\"background-color:#FFFFFF;border:1px solid #F2BCCC;border-top:6px solid #D96182;border-radius:22px;overflow:hidden;\">\n          \u003ctable role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" style=\"width:100%;\">\n            \u003ctr>\u003ctd align=\"center\" bgcolor=\"#FFE1E9\" style=\"padding:25px 20px 24px;background-color:#FFE1E9;border-bottom:1px solid #F2BCCC;\">\n              \u003cp aria-hidden=\"true\" style=\"margin:0 0 12px;color:#B7395D;font-size:24px;line-height:1.4;letter-spacing:5px;\">♡ · 🍓 · ♡\u003c/p>\n              \u003cp style=\"margin:0;color:#51313C;font-size:13px;line-height:1.6;letter-spacing:1px;\">一颗小心意，寄给你\u003c/p>\n            \u003c/td>\u003c/tr>\n            \u003ctr>\u003ctd style=\"padding:30px 24px 14px;\">\n              \u003cp style=\"margin:0 0 13px;color:#81616C;font-size:14px;line-height:1.7;word-break:break-word;\">小满，你好呀\u003c/p>\n              \u003ch1 style=\"margin:0 0 16px;color:#51313C;font-size:25px;line-height:1.5;font-weight:700;word-break:break-word;overflow-wrap:anywhere;\">一份认真完成的小约定，等你验收\u003c/h1>\n              \u003cp style=\"margin:0 0 24px;color:#81616C;font-size:15px;line-height:1.85;\">💌 &nbsp;一份用心已经交到你手里，记得回应对方的认真呀。\u003c/p>\n              \u003ctable role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" style=\"width:100%;\">\u003ctr>\u003ctd style=\"padding:19px 18px 5px;border-left:3px solid #B7395D;background-color:#FFE1E9;color:#51313C;border-radius:0 12px 12px 0;\">\u003cp style=\"margin:0 0 14px;font-size:16px;line-height:1.85;word-break:break-word;overflow-wrap:anywhere;\">安安已提交「一起准备周末的野餐」，请来确认完成情况。\u003c/p>\u003cp style=\"margin:0 0 14px;font-size:16px;line-height:1.85;word-break:break-word;overflow-wrap:anywhere;\">完成说明：三明治、草莓和你喜欢的气泡水都准备好啦。\u003cbr>约定奖励：30 积分\u003c/p>\u003c/td>\u003c/tr>\u003c/table>\n            \u003c/td>\u003c/tr>\n            \u003ctr>\u003ctd align=\"center\" style=\"padding:14px 24px 29px;\">\u003ctable role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" style=\"margin:0 auto;\">\n        \u003ctr>\u003ctd align=\"center\" bgcolor=\"#B7395D\" style=\"border-radius:14px;background-color:#B7395D;mso-padding-alt:16px 28px;\">\n          \u003ca href=\"https://couple.example.test/?page=tasks&amp;task=5c30f052-76df-4c1b-b766-6dab9ab7f601\" style=\"display:inline-block;padding:16px 28px;color:#FFFFFF;font-size:16px;line-height:1.35;font-weight:700;text-decoration:none;border-radius:14px;\">去验收这份用心 &nbsp;→\u003c/a>\n        \u003c/td>\u003c/tr>\n      \u003c/table>\n      \u003cp style=\"margin:20px 0 6px;color:#81616C;font-size:12px;line-height:1.7;\">按钮打不开时，也可以复制下面的链接到浏览器。\u003c/p>\n      \u003cp style=\"margin:0;font-size:12px;line-height:1.7;word-break:break-all;overflow-wrap:anywhere;\">\u003ca href=\"https://couple.example.test/?page=tasks&amp;task=5c30f052-76df-4c1b-b766-6dab9ab7f601\" style=\"color:#81616C;text-decoration:underline;word-break:break-all;\">https://couple.example.test/?page=tasks&amp;task=5c30f052-76df-4c1b-b766-6dab9ab7f601\u003c/a>\u003c/p>\u003c/td>\u003c/tr>\n            \u003ctr>\u003ctd align=\"center\" style=\"padding:19px 24px;border-top:1px solid #F2BCCC;color:#81616C;font-size:13px;line-height:1.8;\">把喜欢，放进每一天。\u003cbr>\u003cspan style=\"font-size:16px;color:#B7395D;\">♡\u003c/span>\u003c/td>\u003c/tr>\n          \u003c/table>\n        \u003c/td>\u003c/tr>\n        \u003ctr>\u003ctd align=\"center\" style=\"padding:19px 16px 0;color:#81616C;font-size:12px;line-height:1.9;\">邮件提醒可以在「我们的空间」中调整；站内通知会为你保留。\u003cbr>两个人 · 把日常过成小小的心意\u003c/td>\u003c/tr>\n      \u003c/table>\n      \u003c!--[if mso]>\u003c/td>\u003c/tr>\u003c/table>\u003c![endif]-->\n    \u003c/td>\u003c/tr>\n  \u003c/table>\n\u003c/body>\n\u003c/html>"
+        },
+        {
+          "id": "cream",
+          "name": "奶油来信",
+          "description": "暖奶油色的小信纸，装下一点温柔和小确幸。",
+          "emoji": "🧁",
+          "accent": "#855723",
+          "background": "#FFF6E7",
+          "html": "\u003c!DOCTYPE html>\n\u003chtml lang=\"zh-CN\">\n\u003chead>\u003cmeta charset=\"UTF-8\">\u003cmeta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\u003cmeta name=\"color-scheme\" content=\"light\">\u003ctitle>一份认真完成的小约定，等你验收\u003c/title>\u003c/head>\n\u003cbody data-email-theme=\"cream\" style=\"margin:0;padding:0;background-color:#FFF6E7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Microsoft YaHei',Arial,sans-serif;color:#51412E;-webkit-text-size-adjust:100%;\">\n  \u003cdiv style=\"display:none;max-height:0;overflow:hidden;opacity:0;mso-hide:all;\">一份用心已经交到你手里，记得回应对方的认真呀。\u003c/div>\n  \u003ctable role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" bgcolor=\"#FFF6E7\" style=\"width:100%;background-color:#FFF6E7;\">\n    \u003ctr>\u003ctd align=\"center\" style=\"padding:28px 12px;\">\n      \u003c!--[if mso]>\u003ctable role=\"presentation\" width=\"600\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\">\u003ctr>\u003ctd>\u003c![endif]-->\n      \u003ctable role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" style=\"width:100%;max-width:600px;\">\n        \u003ctr>\u003ctd align=\"center\" style=\"padding:0 12px 20px;color:#51412E;font-size:20px;font-weight:700;letter-spacing:2px;\">♡ &nbsp;两个人\u003c/td>\u003c/tr>\n        \u003ctr>\u003ctd bgcolor=\"#FFFEFA\" style=\"background-color:#FFFEFA;border:1px solid #DDCBA9;border-top:6px double #C7A46C;border-radius:22px;overflow:hidden;\">\n          \u003ctable role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" style=\"width:100%;\">\n            \u003ctr>\u003ctd align=\"center\" bgcolor=\"#F9EBD1\" style=\"padding:25px 20px 24px;background-color:#F9EBD1;border-bottom:1px solid #DDCBA9;\">\n              \u003cp aria-hidden=\"true\" style=\"margin:0 0 12px;color:#855723;font-size:23px;line-height:1.4;letter-spacing:5px;\">✿   🧁   ✿\u003c/p>\n              \u003cp style=\"margin:0;color:#51412E;font-size:13px;line-height:1.6;letter-spacing:1px;\">今日份的温柔已送达\u003c/p>\n            \u003c/td>\u003c/tr>\n            \u003ctr>\u003ctd style=\"padding:30px 24px 14px;\">\n              \u003cp style=\"margin:0 0 13px;color:#7F6C53;font-size:14px;line-height:1.7;word-break:break-word;\">小满，你好呀\u003c/p>\n              \u003ch1 style=\"margin:0 0 16px;color:#51412E;font-size:25px;line-height:1.5;font-weight:700;word-break:break-word;overflow-wrap:anywhere;\">一份认真完成的小约定，等你验收\u003c/h1>\n              \u003cp style=\"margin:0 0 24px;color:#7F6C53;font-size:15px;line-height:1.85;\">💌 &nbsp;一份用心已经交到你手里，记得回应对方的认真呀。\u003c/p>\n              \u003ctable role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" style=\"width:100%;\">\u003ctr>\u003ctd style=\"padding:19px 18px 5px;border-left:3px solid #855723;background-color:#F9EBD1;color:#51412E;border-radius:0 12px 12px 0;\">\u003cp style=\"margin:0 0 14px;font-size:16px;line-height:1.85;word-break:break-word;overflow-wrap:anywhere;\">安安已提交「一起准备周末的野餐」，请来确认完成情况。\u003c/p>\u003cp style=\"margin:0 0 14px;font-size:16px;line-height:1.85;word-break:break-word;overflow-wrap:anywhere;\">完成说明：三明治、草莓和你喜欢的气泡水都准备好啦。\u003cbr>约定奖励：30 积分\u003c/p>\u003c/td>\u003c/tr>\u003c/table>\n            \u003c/td>\u003c/tr>\n            \u003ctr>\u003ctd align=\"center\" style=\"padding:14px 24px 29px;\">\u003ctable role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" style=\"margin:0 auto;\">\n        \u003ctr>\u003ctd align=\"center\" bgcolor=\"#855723\" style=\"border-radius:14px;background-color:#855723;mso-padding-alt:16px 28px;\">\n          \u003ca href=\"https://couple.example.test/?page=tasks&amp;task=5c30f052-76df-4c1b-b766-6dab9ab7f601\" style=\"display:inline-block;padding:16px 28px;color:#FFFFFF;font-size:16px;line-height:1.35;font-weight:700;text-decoration:none;border-radius:14px;\">去验收这份用心 &nbsp;→\u003c/a>\n        \u003c/td>\u003c/tr>\n      \u003c/table>\n      \u003cp style=\"margin:20px 0 6px;color:#7F6C53;font-size:12px;line-height:1.7;\">按钮打不开时，也可以复制下面的链接到浏览器。\u003c/p>\n      \u003cp style=\"margin:0;font-size:12px;line-height:1.7;word-break:break-all;overflow-wrap:anywhere;\">\u003ca href=\"https://couple.example.test/?page=tasks&amp;task=5c30f052-76df-4c1b-b766-6dab9ab7f601\" style=\"color:#7F6C53;text-decoration:underline;word-break:break-all;\">https://couple.example.test/?page=tasks&amp;task=5c30f052-76df-4c1b-b766-6dab9ab7f601\u003c/a>\u003c/p>\u003c/td>\u003c/tr>\n            \u003ctr>\u003ctd align=\"center\" style=\"padding:19px 24px;border-top:1px solid #DDCBA9;color:#7F6C53;font-size:13px;line-height:1.8;\">平凡的小事，也值得好好收藏。\u003cbr>\u003cspan style=\"font-size:16px;color:#855723;\">♡\u003c/span>\u003c/td>\u003c/tr>\n          \u003c/table>\n        \u003c/td>\u003c/tr>\n        \u003ctr>\u003ctd align=\"center\" style=\"padding:19px 16px 0;color:#7F6C53;font-size:12px;line-height:1.9;\">邮件提醒可以在「我们的空间」中调整；站内通知会为你保留。\u003cbr>两个人 · 把日常过成小小的心意\u003c/td>\u003c/tr>\n      \u003c/table>\n      \u003c!--[if mso]>\u003c/td>\u003c/tr>\u003c/table>\u003c![endif]-->\n    \u003c/td>\u003c/tr>\n  \u003c/table>\n\u003c/body>\n\u003c/html>"
+        },
+        {
+          "id": "mint",
+          "name": "薄荷花园",
+          "description": "清新的绿叶边框，陪你们慢慢收集好日常。",
+          "emoji": "🌿",
+          "accent": "#26715A",
+          "background": "#EDF8F1",
+          "html": "\u003c!DOCTYPE html>\n\u003chtml lang=\"zh-CN\">\n\u003chead>\u003cmeta charset=\"UTF-8\">\u003cmeta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\u003cmeta name=\"color-scheme\" content=\"light\">\u003ctitle>一份认真完成的小约定，等你验收\u003c/title>\u003c/head>\n\u003cbody data-email-theme=\"mint\" style=\"margin:0;padding:0;background-color:#EDF8F1;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Microsoft YaHei',Arial,sans-serif;color:#304C40;-webkit-text-size-adjust:100%;\">\n  \u003cdiv style=\"display:none;max-height:0;overflow:hidden;opacity:0;mso-hide:all;\">一份用心已经交到你手里，记得回应对方的认真呀。\u003c/div>\n  \u003ctable role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" bgcolor=\"#EDF8F1\" style=\"width:100%;background-color:#EDF8F1;\">\n    \u003ctr>\u003ctd align=\"center\" style=\"padding:28px 12px;\">\n      \u003c!--[if mso]>\u003ctable role=\"presentation\" width=\"600\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\">\u003ctr>\u003ctd>\u003c![endif]-->\n      \u003ctable role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" style=\"width:100%;max-width:600px;\">\n        \u003ctr>\u003ctd align=\"center\" style=\"padding:0 12px 20px;color:#304C40;font-size:20px;font-weight:700;letter-spacing:2px;\">♡ &nbsp;两个人\u003c/td>\u003c/tr>\n        \u003ctr>\u003ctd bgcolor=\"#FFFFFF\" style=\"background-color:#FFFFFF;border:1px solid #B4D6C2;border-top:5px dotted #78B69A;border-radius:22px;overflow:hidden;\">\n          \u003ctable role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" style=\"width:100%;\">\n            \u003ctr>\u003ctd align=\"center\" bgcolor=\"#E0F1E5\" style=\"padding:25px 20px 24px;background-color:#E0F1E5;border-bottom:1px solid #B4D6C2;\">\n              \u003cp aria-hidden=\"true\" style=\"margin:0 0 12px;color:#26715A;font-size:25px;line-height:1.4;letter-spacing:5px;\">🌿    ♧    🌱\u003c/p>\n              \u003cp style=\"margin:0;color:#304C40;font-size:13px;line-height:1.6;letter-spacing:1px;\">我们的日常，又长大一点\u003c/p>\n            \u003c/td>\u003c/tr>\n            \u003ctr>\u003ctd style=\"padding:30px 24px 14px;\">\n              \u003cp style=\"margin:0 0 13px;color:#607B6D;font-size:14px;line-height:1.7;word-break:break-word;\">小满，你好呀\u003c/p>\n              \u003ch1 style=\"margin:0 0 16px;color:#304C40;font-size:25px;line-height:1.5;font-weight:700;word-break:break-word;overflow-wrap:anywhere;\">一份认真完成的小约定，等你验收\u003c/h1>\n              \u003cp style=\"margin:0 0 24px;color:#607B6D;font-size:15px;line-height:1.85;\">💌 &nbsp;一份用心已经交到你手里，记得回应对方的认真呀。\u003c/p>\n              \u003ctable role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" style=\"width:100%;\">\u003ctr>\u003ctd style=\"padding:19px 18px 5px;border-left:3px solid #26715A;background-color:#E0F1E5;color:#304C40;border-radius:0 12px 12px 0;\">\u003cp style=\"margin:0 0 14px;font-size:16px;line-height:1.85;word-break:break-word;overflow-wrap:anywhere;\">安安已提交「一起准备周末的野餐」，请来确认完成情况。\u003c/p>\u003cp style=\"margin:0 0 14px;font-size:16px;line-height:1.85;word-break:break-word;overflow-wrap:anywhere;\">完成说明：三明治、草莓和你喜欢的气泡水都准备好啦。\u003cbr>约定奖励：30 积分\u003c/p>\u003c/td>\u003c/tr>\u003c/table>\n            \u003c/td>\u003c/tr>\n            \u003ctr>\u003ctd align=\"center\" style=\"padding:14px 24px 29px;\">\u003ctable role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" style=\"margin:0 auto;\">\n        \u003ctr>\u003ctd align=\"center\" bgcolor=\"#26715A\" style=\"border-radius:14px;background-color:#26715A;mso-padding-alt:16px 28px;\">\n          \u003ca href=\"https://couple.example.test/?page=tasks&amp;task=5c30f052-76df-4c1b-b766-6dab9ab7f601\" style=\"display:inline-block;padding:16px 28px;color:#FFFFFF;font-size:16px;line-height:1.35;font-weight:700;text-decoration:none;border-radius:14px;\">去验收这份用心 &nbsp;→\u003c/a>\n        \u003c/td>\u003c/tr>\n      \u003c/table>\n      \u003cp style=\"margin:20px 0 6px;color:#607B6D;font-size:12px;line-height:1.7;\">按钮打不开时，也可以复制下面的链接到浏览器。\u003c/p>\n      \u003cp style=\"margin:0;font-size:12px;line-height:1.7;word-break:break-all;overflow-wrap:anywhere;\">\u003ca href=\"https://couple.example.test/?page=tasks&amp;task=5c30f052-76df-4c1b-b766-6dab9ab7f601\" style=\"color:#607B6D;text-decoration:underline;word-break:break-all;\">https://couple.example.test/?page=tasks&amp;task=5c30f052-76df-4c1b-b766-6dab9ab7f601\u003c/a>\u003c/p>\u003c/td>\u003c/tr>\n            \u003ctr>\u003ctd align=\"center\" style=\"padding:19px 24px;border-top:1px solid #B4D6C2;color:#607B6D;font-size:13px;line-height:1.8;\">一起慢慢来，一起好好生活。\u003cbr>\u003cspan style=\"font-size:16px;color:#26715A;\">♡\u003c/span>\u003c/td>\u003c/tr>\n          \u003c/table>\n        \u003c/td>\u003c/tr>\n        \u003ctr>\u003ctd align=\"center\" style=\"padding:19px 16px 0;color:#607B6D;font-size:12px;line-height:1.9;\">邮件提醒可以在「我们的空间」中调整；站内通知会为你保留。\u003cbr>两个人 · 把日常过成小小的心意\u003c/td>\u003c/tr>\n      \u003c/table>\n      \u003c!--[if mso]>\u003c/td>\u003c/tr>\u003c/table>\u003c![endif]-->\n    \u003c/td>\u003c/tr>\n  \u003c/table>\n\u003c/body>\n\u003c/html>"
+        },
+        {
+          "id": "sky",
+          "name": "云朵邮局",
+          "description": "把小约定寄上蓝天，让柔软的云朵送到身边。",
+          "emoji": "☁️",
+          "accent": "#2F6597",
+          "background": "#EDF6FF",
+          "html": "\u003c!DOCTYPE html>\n\u003chtml lang=\"zh-CN\">\n\u003chead>\u003cmeta charset=\"UTF-8\">\u003cmeta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\u003cmeta name=\"color-scheme\" content=\"light\">\u003ctitle>一份认真完成的小约定，等你验收\u003c/title>\u003c/head>\n\u003cbody data-email-theme=\"sky\" style=\"margin:0;padding:0;background-color:#EDF6FF;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Microsoft YaHei',Arial,sans-serif;color:#304B65;-webkit-text-size-adjust:100%;\">\n  \u003cdiv style=\"display:none;max-height:0;overflow:hidden;opacity:0;mso-hide:all;\">一份用心已经交到你手里，记得回应对方的认真呀。\u003c/div>\n  \u003ctable role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" bgcolor=\"#EDF6FF\" style=\"width:100%;background-color:#EDF6FF;\">\n    \u003ctr>\u003ctd align=\"center\" style=\"padding:28px 12px;\">\n      \u003c!--[if mso]>\u003ctable role=\"presentation\" width=\"600\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\">\u003ctr>\u003ctd>\u003c![endif]-->\n      \u003ctable role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" style=\"width:100%;max-width:600px;\">\n        \u003ctr>\u003ctd align=\"center\" style=\"padding:0 12px 20px;color:#304B65;font-size:20px;font-weight:700;letter-spacing:2px;\">♡ &nbsp;两个人\u003c/td>\u003c/tr>\n        \u003ctr>\u003ctd bgcolor=\"#FFFFFF\" style=\"background-color:#FFFFFF;border:1px solid #B9D5EC;border-top:7px solid #8FBDDF;border-radius:22px;overflow:hidden;\">\n          \u003ctable role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" style=\"width:100%;\">\n            \u003ctr>\u003ctd align=\"center\" bgcolor=\"#DDEEFF\" style=\"padding:25px 20px 24px;background-color:#DDEEFF;border-bottom:1px solid #B9D5EC;\">\n              \u003cp aria-hidden=\"true\" style=\"margin:0 0 12px;color:#2F6597;font-size:27px;line-height:1.4;letter-spacing:5px;\">☁️    ✉    ☁️\u003c/p>\n              \u003cp style=\"margin:0;color:#304B65;font-size:13px;line-height:1.6;letter-spacing:1px;\">云朵邮局 · 有你的来信\u003c/p>\n            \u003c/td>\u003c/tr>\n            \u003ctr>\u003ctd style=\"padding:30px 24px 14px;\">\n              \u003cp style=\"margin:0 0 13px;color:#637D95;font-size:14px;line-height:1.7;word-break:break-word;\">小满，你好呀\u003c/p>\n              \u003ch1 style=\"margin:0 0 16px;color:#304B65;font-size:25px;line-height:1.5;font-weight:700;word-break:break-word;overflow-wrap:anywhere;\">一份认真完成的小约定，等你验收\u003c/h1>\n              \u003cp style=\"margin:0 0 24px;color:#637D95;font-size:15px;line-height:1.85;\">💌 &nbsp;一份用心已经交到你手里，记得回应对方的认真呀。\u003c/p>\n              \u003ctable role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" style=\"width:100%;\">\u003ctr>\u003ctd style=\"padding:19px 18px 5px;border-left:3px solid #2F6597;background-color:#DDEEFF;color:#304B65;border-radius:0 12px 12px 0;\">\u003cp style=\"margin:0 0 14px;font-size:16px;line-height:1.85;word-break:break-word;overflow-wrap:anywhere;\">安安已提交「一起准备周末的野餐」，请来确认完成情况。\u003c/p>\u003cp style=\"margin:0 0 14px;font-size:16px;line-height:1.85;word-break:break-word;overflow-wrap:anywhere;\">完成说明：三明治、草莓和你喜欢的气泡水都准备好啦。\u003cbr>约定奖励：30 积分\u003c/p>\u003c/td>\u003c/tr>\u003c/table>\n            \u003c/td>\u003c/tr>\n            \u003ctr>\u003ctd align=\"center\" style=\"padding:14px 24px 29px;\">\u003ctable role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" style=\"margin:0 auto;\">\n        \u003ctr>\u003ctd align=\"center\" bgcolor=\"#2F6597\" style=\"border-radius:14px;background-color:#2F6597;mso-padding-alt:16px 28px;\">\n          \u003ca href=\"https://couple.example.test/?page=tasks&amp;task=5c30f052-76df-4c1b-b766-6dab9ab7f601\" style=\"display:inline-block;padding:16px 28px;color:#FFFFFF;font-size:16px;line-height:1.35;font-weight:700;text-decoration:none;border-radius:14px;\">去验收这份用心 &nbsp;→\u003c/a>\n        \u003c/td>\u003c/tr>\n      \u003c/table>\n      \u003cp style=\"margin:20px 0 6px;color:#637D95;font-size:12px;line-height:1.7;\">按钮打不开时，也可以复制下面的链接到浏览器。\u003c/p>\n      \u003cp style=\"margin:0;font-size:12px;line-height:1.7;word-break:break-all;overflow-wrap:anywhere;\">\u003ca href=\"https://couple.example.test/?page=tasks&amp;task=5c30f052-76df-4c1b-b766-6dab9ab7f601\" style=\"color:#637D95;text-decoration:underline;word-break:break-all;\">https://couple.example.test/?page=tasks&amp;task=5c30f052-76df-4c1b-b766-6dab9ab7f601\u003c/a>\u003c/p>\u003c/td>\u003c/tr>\n            \u003ctr>\u003ctd align=\"center\" style=\"padding:19px 24px;border-top:1px solid #B9D5EC;color:#637D95;font-size:13px;line-height:1.8;\">每一份小约定，都有人放在心上。\u003cbr>\u003cspan style=\"font-size:16px;color:#2F6597;\">♡\u003c/span>\u003c/td>\u003c/tr>\n          \u003c/table>\n        \u003c/td>\u003c/tr>\n        \u003ctr>\u003ctd align=\"center\" style=\"padding:19px 16px 0;color:#637D95;font-size:12px;line-height:1.9;\">邮件提醒可以在「我们的空间」中调整；站内通知会为你保留。\u003cbr>两个人 · 把日常过成小小的心意\u003c/td>\u003c/tr>\n      \u003c/table>\n      \u003c!--[if mso]>\u003c/td>\u003c/tr>\u003c/table>\u003c![endif]-->\n    \u003c/td>\u003c/tr>\n  \u003c/table>\n\u003c/body>\n\u003c/html>"
+        },
+        {
+          "id": "lavender",
+          "name": "紫色花笺",
+          "description": "淡紫花朵与虚线信封，留住认真对待彼此的心意。",
+          "emoji": "🪻",
+          "accent": "#7655A3",
+          "background": "#F4EFFB",
+          "html": "\u003c!DOCTYPE html>\n\u003chtml lang=\"zh-CN\">\n\u003chead>\u003cmeta charset=\"UTF-8\">\u003cmeta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\u003cmeta name=\"color-scheme\" content=\"light\">\u003ctitle>一份认真完成的小约定，等你验收\u003c/title>\u003c/head>\n\u003cbody data-email-theme=\"lavender\" style=\"margin:0;padding:0;background-color:#F4EFFB;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Microsoft YaHei',Arial,sans-serif;color:#514264;-webkit-text-size-adjust:100%;\">\n  \u003cdiv style=\"display:none;max-height:0;overflow:hidden;opacity:0;mso-hide:all;\">一份用心已经交到你手里，记得回应对方的认真呀。\u003c/div>\n  \u003ctable role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" bgcolor=\"#F4EFFB\" style=\"width:100%;background-color:#F4EFFB;\">\n    \u003ctr>\u003ctd align=\"center\" style=\"padding:28px 12px;\">\n      \u003c!--[if mso]>\u003ctable role=\"presentation\" width=\"600\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\">\u003ctr>\u003ctd>\u003c![endif]-->\n      \u003ctable role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" style=\"width:100%;max-width:600px;\">\n        \u003ctr>\u003ctd align=\"center\" style=\"padding:0 12px 20px;color:#514264;font-size:20px;font-weight:700;letter-spacing:2px;\">♡ &nbsp;两个人\u003c/td>\u003c/tr>\n        \u003ctr>\u003ctd bgcolor=\"#FFFDFF\" style=\"background-color:#FFFDFF;border:1px solid #D3C0E8;border-top:5px dashed #B09ACF;border-radius:22px;overflow:hidden;\">\n          \u003ctable role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" style=\"width:100%;\">\n            \u003ctr>\u003ctd align=\"center\" bgcolor=\"#EBE0F8\" style=\"padding:25px 20px 24px;background-color:#EBE0F8;border-bottom:1px solid #D3C0E8;\">\n              \u003cp aria-hidden=\"true\" style=\"margin:0 0 12px;color:#7655A3;font-size:25px;line-height:1.4;letter-spacing:5px;\">✾    🪻    ✾\u003c/p>\n              \u003cp style=\"margin:0;color:#514264;font-size:13px;line-height:1.6;letter-spacing:1px;\">给你一封，开着花的小信\u003c/p>\n            \u003c/td>\u003c/tr>\n            \u003ctr>\u003ctd style=\"padding:30px 24px 14px;\">\n              \u003cp style=\"margin:0 0 13px;color:#7D6B91;font-size:14px;line-height:1.7;word-break:break-word;\">小满，你好呀\u003c/p>\n              \u003ch1 style=\"margin:0 0 16px;color:#514264;font-size:25px;line-height:1.5;font-weight:700;word-break:break-word;overflow-wrap:anywhere;\">一份认真完成的小约定，等你验收\u003c/h1>\n              \u003cp style=\"margin:0 0 24px;color:#7D6B91;font-size:15px;line-height:1.85;\">💌 &nbsp;一份用心已经交到你手里，记得回应对方的认真呀。\u003c/p>\n              \u003ctable role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" style=\"width:100%;\">\u003ctr>\u003ctd style=\"padding:19px 18px 5px;border-left:3px solid #7655A3;background-color:#EBE0F8;color:#514264;border-radius:0 12px 12px 0;\">\u003cp style=\"margin:0 0 14px;font-size:16px;line-height:1.85;word-break:break-word;overflow-wrap:anywhere;\">安安已提交「一起准备周末的野餐」，请来确认完成情况。\u003c/p>\u003cp style=\"margin:0 0 14px;font-size:16px;line-height:1.85;word-break:break-word;overflow-wrap:anywhere;\">完成说明：三明治、草莓和你喜欢的气泡水都准备好啦。\u003cbr>约定奖励：30 积分\u003c/p>\u003c/td>\u003c/tr>\u003c/table>\n            \u003c/td>\u003c/tr>\n            \u003ctr>\u003ctd align=\"center\" style=\"padding:14px 24px 29px;\">\u003ctable role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" style=\"margin:0 auto;\">\n        \u003ctr>\u003ctd align=\"center\" bgcolor=\"#7655A3\" style=\"border-radius:14px;background-color:#7655A3;mso-padding-alt:16px 28px;\">\n          \u003ca href=\"https://couple.example.test/?page=tasks&amp;task=5c30f052-76df-4c1b-b766-6dab9ab7f601\" style=\"display:inline-block;padding:16px 28px;color:#FFFFFF;font-size:16px;line-height:1.35;font-weight:700;text-decoration:none;border-radius:14px;\">去验收这份用心 &nbsp;→\u003c/a>\n        \u003c/td>\u003c/tr>\n      \u003c/table>\n      \u003cp style=\"margin:20px 0 6px;color:#7D6B91;font-size:12px;line-height:1.7;\">按钮打不开时，也可以复制下面的链接到浏览器。\u003c/p>\n      \u003cp style=\"margin:0;font-size:12px;line-height:1.7;word-break:break-all;overflow-wrap:anywhere;\">\u003ca href=\"https://couple.example.test/?page=tasks&amp;task=5c30f052-76df-4c1b-b766-6dab9ab7f601\" style=\"color:#7D6B91;text-decoration:underline;word-break:break-all;\">https://couple.example.test/?page=tasks&amp;task=5c30f052-76df-4c1b-b766-6dab9ab7f601\u003c/a>\u003c/p>\u003c/td>\u003c/tr>\n            \u003ctr>\u003ctd align=\"center\" style=\"padding:19px 24px;border-top:1px solid #D3C0E8;color:#7D6B91;font-size:13px;line-height:1.8;\">认真回应，是日常里温柔的浪漫。\u003cbr>\u003cspan style=\"font-size:16px;color:#7655A3;\">♡\u003c/span>\u003c/td>\u003c/tr>\n          \u003c/table>\n        \u003c/td>\u003c/tr>\n        \u003ctr>\u003ctd align=\"center\" style=\"padding:19px 16px 0;color:#7D6B91;font-size:12px;line-height:1.9;\">邮件提醒可以在「我们的空间」中调整；站内通知会为你保留。\u003cbr>两个人 · 把日常过成小小的心意\u003c/td>\u003c/tr>\n      \u003c/table>\n      \u003c!--[if mso]>\u003c/td>\u003c/tr>\u003c/table>\u003c![endif]-->\n    \u003c/td>\u003c/tr>\n  \u003c/table>\n\u003c/body>\n\u003c/html>"
+        },
+        {
+          "id": "night",
+          "name": "晚安星河",
+          "description": "深蓝夜空和暖金小星星，把今天的心意悄悄点亮。",
+          "emoji": "🌙",
+          "accent": "#E8C780",
+          "background": "#131A30",
+          "html": "\u003c!DOCTYPE html>\n\u003chtml lang=\"zh-CN\">\n\u003chead>\u003cmeta charset=\"UTF-8\">\u003cmeta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\u003cmeta name=\"color-scheme\" content=\"dark\">\u003ctitle>一份认真完成的小约定，等你验收\u003c/title>\u003c/head>\n\u003cbody data-email-theme=\"night\" style=\"margin:0;padding:0;background-color:#131A30;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Microsoft YaHei',Arial,sans-serif;color:#F3EEE4;-webkit-text-size-adjust:100%;\">\n  \u003cdiv style=\"display:none;max-height:0;overflow:hidden;opacity:0;mso-hide:all;\">一份用心已经交到你手里，记得回应对方的认真呀。\u003c/div>\n  \u003ctable role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" bgcolor=\"#131A30\" style=\"width:100%;background-color:#131A30;\">\n    \u003ctr>\u003ctd align=\"center\" style=\"padding:28px 12px;\">\n      \u003c!--[if mso]>\u003ctable role=\"presentation\" width=\"600\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\">\u003ctr>\u003ctd>\u003c![endif]-->\n      \u003ctable role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" style=\"width:100%;max-width:600px;\">\n        \u003ctr>\u003ctd align=\"center\" style=\"padding:0 12px 20px;color:#F3EEE4;font-size:20px;font-weight:700;letter-spacing:2px;\">♡ &nbsp;两个人\u003c/td>\u003c/tr>\n        \u003ctr>\u003ctd bgcolor=\"#202B45\" style=\"background-color:#202B45;border:1px solid #495572;border-top:5px solid #E8C780;border-radius:22px;overflow:hidden;\">\n          \u003ctable role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" style=\"width:100%;\">\n            \u003ctr>\u003ctd align=\"center\" bgcolor=\"#293651\" style=\"padding:25px 20px 24px;background-color:#293651;border-bottom:1px solid #495572;\">\n              \u003cp aria-hidden=\"true\" style=\"margin:0 0 12px;color:#E8C780;font-size:26px;line-height:1.4;letter-spacing:5px;\">✦    🌙    ✧\u003c/p>\n              \u003cp style=\"margin:0;color:#F3EEE4;font-size:13px;line-height:1.6;letter-spacing:1px;\">星光替你，捎来一份心意\u003c/p>\n            \u003c/td>\u003c/tr>\n            \u003ctr>\u003ctd style=\"padding:30px 24px 14px;\">\n              \u003cp style=\"margin:0 0 13px;color:#C1CBDD;font-size:14px;line-height:1.7;word-break:break-word;\">小满，你好呀\u003c/p>\n              \u003ch1 style=\"margin:0 0 16px;color:#F3EEE4;font-size:25px;line-height:1.5;font-weight:700;word-break:break-word;overflow-wrap:anywhere;\">一份认真完成的小约定，等你验收\u003c/h1>\n              \u003cp style=\"margin:0 0 24px;color:#C1CBDD;font-size:15px;line-height:1.85;\">💌 &nbsp;一份用心已经交到你手里，记得回应对方的认真呀。\u003c/p>\n              \u003ctable role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" style=\"width:100%;\">\u003ctr>\u003ctd style=\"padding:19px 18px 5px;border-left:3px solid #E8C780;background-color:#293651;color:#F3EEE4;border-radius:0 12px 12px 0;\">\u003cp style=\"margin:0 0 14px;font-size:16px;line-height:1.85;word-break:break-word;overflow-wrap:anywhere;\">安安已提交「一起准备周末的野餐」，请来确认完成情况。\u003c/p>\u003cp style=\"margin:0 0 14px;font-size:16px;line-height:1.85;word-break:break-word;overflow-wrap:anywhere;\">完成说明：三明治、草莓和你喜欢的气泡水都准备好啦。\u003cbr>约定奖励：30 积分\u003c/p>\u003c/td>\u003c/tr>\u003c/table>\n            \u003c/td>\u003c/tr>\n            \u003ctr>\u003ctd align=\"center\" style=\"padding:14px 24px 29px;\">\u003ctable role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" style=\"margin:0 auto;\">\n        \u003ctr>\u003ctd align=\"center\" bgcolor=\"#E8C780\" style=\"border-radius:14px;background-color:#E8C780;mso-padding-alt:16px 28px;\">\n          \u003ca href=\"https://couple.example.test/?page=tasks&amp;task=5c30f052-76df-4c1b-b766-6dab9ab7f601\" style=\"display:inline-block;padding:16px 28px;color:#302B24;font-size:16px;line-height:1.35;font-weight:700;text-decoration:none;border-radius:14px;\">去验收这份用心 &nbsp;→\u003c/a>\n        \u003c/td>\u003c/tr>\n      \u003c/table>\n      \u003cp style=\"margin:20px 0 6px;color:#C1CBDD;font-size:12px;line-height:1.7;\">按钮打不开时，也可以复制下面的链接到浏览器。\u003c/p>\n      \u003cp style=\"margin:0;font-size:12px;line-height:1.7;word-break:break-all;overflow-wrap:anywhere;\">\u003ca href=\"https://couple.example.test/?page=tasks&amp;task=5c30f052-76df-4c1b-b766-6dab9ab7f601\" style=\"color:#C1CBDD;text-decoration:underline;word-break:break-all;\">https://couple.example.test/?page=tasks&amp;task=5c30f052-76df-4c1b-b766-6dab9ab7f601\u003c/a>\u003c/p>\u003c/td>\u003c/tr>\n            \u003ctr>\u003ctd align=\"center\" style=\"padding:19px 24px;border-top:1px solid #495572;color:#C1CBDD;font-size:13px;line-height:1.8;\">今天的小小用心，也在悄悄发光。\u003cbr>\u003cspan style=\"font-size:16px;color:#E8C780;\">♡\u003c/span>\u003c/td>\u003c/tr>\n          \u003c/table>\n        \u003c/td>\u003c/tr>\n        \u003ctr>\u003ctd align=\"center\" style=\"padding:19px 16px 0;color:#C1CBDD;font-size:12px;line-height:1.9;\">邮件提醒可以在「我们的空间」中调整；站内通知会为你保留。\u003cbr>两个人 · 把日常过成小小的心意\u003c/td>\u003c/tr>\n      \u003c/table>\n      \u003c!--[if mso]>\u003c/td>\u003c/tr>\u003c/table>\u003c![endif]-->\n    \u003c/td>\u003c/tr>\n  \u003c/table>\n\u003c/body>\n\u003c/html>"
+        }
+      ]
+    </script>
+    <script>
+      (() => {
+        const themes = JSON.parse(document.getElementById('theme-data').textContent);
+        const preview = document.getElementById('email-preview');
+        const root = document.documentElement;
+        const options = Array.from(document.querySelectorAll('[data-theme]'));
+        const widths = Array.from(document.querySelectorAll('[data-width]'));
+        function chooseTheme(id) {
+          const theme = themes.find((item) => item.id === id);
+          if (!theme) return;
+          options.forEach((button) => {
+            const selected = button.dataset.theme === id;
+            button.classList.toggle('active', selected);
+            button.setAttribute('aria-pressed', String(selected));
+          });
+          root.style.setProperty('--theme-accent', theme.accent);
+          root.style.setProperty('--theme-background', theme.background);
+          document.getElementById('selected-name').textContent = theme.name;
+          document.getElementById('selected-emoji').textContent = theme.emoji;
+          preview.title = theme.name + '邮件示例';
+          preview.srcdoc = theme.html;
+        }
+        options.forEach((button) =>
+          button.addEventListener('click', () => chooseTheme(button.dataset.theme)),
+        );
+        widths.forEach((button) =>
+          button.addEventListener('click', () => {
+            root.style.setProperty('--preview-width', button.dataset.width + 'px');
+            widths.forEach((item) => {
+              const selected = item === button;
+              item.classList.toggle('active', selected);
+              item.setAttribute('aria-pressed', String(selected));
+            });
+          }),
+        );
+        chooseTheme(themes[0].id);
+      })();
+    </script>
+  </body>
+</html>

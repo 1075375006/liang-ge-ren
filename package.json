@@ -1,0 +1,57 @@
+{
+  "name": "liang-ge-ren",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "format": "prettier --write \"server/**/*.ts\" \"web/src/**/*.{ts,tsx,css}\" \"scripts/*.{ts,mjs}\" \"tests/*.ts\"",
+    "dev": "concurrently -k -n api,web \"tsx watch server/index.ts\" \"vite --host 127.0.0.1\"",
+    "dev:worker": "tsx server/worker.ts",
+    "build": "npm run typecheck && vite build && tsc -p tsconfig.server.json && node scripts/copy-schema.mjs",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "start": "node dist/server/index.js",
+    "worker": "node dist/server/worker.js",
+    "migrate": "tsx scripts/migrate.ts",
+    "check:ledger": "tsx scripts/check-ledger.ts",
+    "check:worker": "tsx scripts/worker-health.ts",
+    "test": "tsx --test --test-concurrency=1 tests/*.test.ts",
+    "test:wechat": "tsx --test --test-concurrency=1 tests/wechat.test.ts",
+    "local:db": "tsx scripts/local-db.ts",
+    "demo:seed": "tsx scripts/seed.ts"
+  },
+  "dependencies": {
+    "@fastify/cookie": "^11.0.2",
+    "@fastify/rate-limit": "^10.3.0",
+    "@fastify/static": "^10.1.4",
+    "dotenv": "^16.6.1",
+    "fastify": "^5.6.0",
+    "lucide-react": "^0.468.0",
+    "luxon": "^3.7.2",
+    "nodemailer": "^10.0.10",
+    "pg": "^8.16.3",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/luxon": "^3.7.1",
+    "@types/node": "^22.18.0",
+    "@types/nodemailer": "^7.0.1",
+    "@types/pg": "^8.15.5",
+    "@types/react": "^19.1.13",
+    "@types/react-dom": "^19.1.9",
+    "@types/smtp-server": "^3.5.12",
+    "@vitejs/plugin-react": "^5.0.3",
+    "concurrently": "^9.2.1",
+    "embedded-postgres": "17.6.0-beta.15",
+    "prettier": "^3.9.8",
+    "smtp-server": "^3.15.0",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.2",
+    "vite": "^7.1.5",
+    "yaml": "^2.8.1"
+  }
+}

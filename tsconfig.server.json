@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "noEmit": false,
+    "rootDir": ".",
+    "outDir": "dist",
+    "types": ["node"]
+  },
+  "include": ["server/**/*.ts", "scripts/migrate.ts", "scripts/check-ledger.ts", "scripts/worker-health.ts"],
+  "exclude": ["tests", "web", "node_modules"]
+}
