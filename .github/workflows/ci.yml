@@ -1,0 +1,38 @@
+name: Build, test and production acceptance
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:17-bookworm
+        env:
+          POSTGRES_USER: couple
+          POSTGRES_PASSWORD: couple_local_only
+          POSTGRES_DB: postgres
+        ports: ['55432:5432']
+        options: >-
+          --health-cmd "pg_isready -U couple -d postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm test
+      - run: npx prettier --check "server/**/*.ts" "web/src/**/*.{ts,tsx,css}" "scripts/*.{ts,mjs}" "tests/*.ts"
+      - run: npm audit --omit=dev --audit-level=high
+      - run: bash ops/test-deploy.sh
+      - run: bash ops/test-production.sh

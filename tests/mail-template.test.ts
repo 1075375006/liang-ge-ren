@@ -24,6 +24,7 @@ const kinds = [
   'ORDER_COMPLETED',
   'ORDER_CANCELLED',
   'VERIFY_EMAIL',
+  'PASSWORD_RESET',
   'PAIRED',
   'GENERAL',
 ];
@@ -147,4 +148,23 @@ test('邮箱中的多段正文和换行不丢失，纯文字版本完全沿用�
   assert.ok(rendered.html.includes('第一段：任务完成，30 积分。<br>继续说明。'));
   assert.ok(rendered.html.includes('第二段：记得带伞。'));
   assert.ok(rendered.html.includes('嗨，收好这封小信'));
+});
+
+test('密码恢复邮件主按钮保留片段令牌，并采用账号安全提示', () => {
+  const resetUrl = `${appUrl}/#reset-password=${'a'.repeat(64)}`;
+  const body = `请设置新密码，链接 30 分钟内有效：\n${resetUrl}\n\n重置后所有设备都需要重新登录。`;
+  const mail = renderMail({ ...base, kind: 'PASSWORD_RESET', body });
+  assert.ok(mail.html.includes(`href="${resetUrl}"`));
+  assert.ok(mail.html.includes('重置登录密码'));
+  assert.ok(mail.html.includes('这是账号安全邮件'));
+  assert.ok(mail.html.includes('30 分钟内有效'));
+  assert.equal(mail.text, body);
+  assert.doesNotMatch(mail.html, /邮件提醒可以在/);
+  const unsafe = renderMail({
+    ...base,
+    kind: 'PASSWORD_RESET',
+    body: '重置链接：\nhttps://evil.example/#reset-password=stolen',
+  });
+  assert.doesNotMatch(unsafe.html, /href="https:\/\/evil/);
+  assert.doesNotMatch(unsafe.html, />重置登录密码/);
 });

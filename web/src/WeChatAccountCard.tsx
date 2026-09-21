@@ -15,6 +15,7 @@ export function WeChatAccountCard({
   onWechat: () => Promise<void>;
 }) {
   const user = bootstrap.user!;
+  const showWechat = bootstrap.wechatEnabled || user.wechatBound;
   const [email, setEmail] = useState('');
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -27,34 +28,37 @@ export function WeChatAccountCard({
     <div className="wechat-account-card">
       <div className="section-heading">
         <h2>
-          <MessageCircle size={19} /> 登录方式
+          {showWechat ? <MessageCircle size={19} /> : <Mail size={19} />}{' '}
+          {showWechat ? '登录方式' : '邮箱'}
         </h2>
       </div>
-      <div className="wechat-account-status">
-        <span className="wechat-mark">
-          <MessageCircle size={19} />
-        </span>
-        <div>
-          <strong>微信账号</strong>
-          <small>{user.wechatBound ? '已绑定到当前账号' : '绑定后可用微信快速登录'}</small>
-        </div>
-        {user.wechatBound ? (
-          <span className="status status-approved">
-            <Check size={13} />
-            已绑定
+      {showWechat && (
+        <div className="wechat-account-status">
+          <span className="wechat-mark">
+            <MessageCircle size={19} />
           </span>
-        ) : (
-          <Button
-            className="subtle small"
-            busy={busy}
-            disabled={!bootstrap.wechatEnabled}
-            onClick={onWechat}
-          >
-            <Link2 size={14} />
-            绑定微信
-          </Button>
-        )}
-      </div>
+          <div>
+            <strong>微信账号</strong>
+            <small>{user.wechatBound ? '已绑定到当前账号' : '绑定后可用微信快速登录'}</small>
+          </div>
+          {user.wechatBound ? (
+            <span className="status status-approved">
+              <Check size={13} />
+              已绑定
+            </span>
+          ) : (
+            <Button
+              className="subtle small"
+              busy={busy}
+              disabled={!bootstrap.wechatEnabled}
+              onClick={onWechat}
+            >
+              <Link2 size={14} />
+              绑定微信
+            </Button>
+          )}
+        </div>
+      )}
       {!user.email ? (
         <form className="wechat-email-form" onSubmit={submit}>
           <label>
@@ -111,7 +115,6 @@ export function WeChatAccountCard({
           )}
         </div>
       )}
-      {!bootstrap.wechatEnabled && <p className="account-hint">微信登录暂未启用，请稍后再试。</p>}
     </div>
   );
 }

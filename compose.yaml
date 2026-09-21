@@ -6,7 +6,8 @@ x-app: &app
   init: true
   restart: unless-stopped
   environment: &env
-    NODE_ENV: production
+    # Local-only experience. Public deployment uses ops/compose.production.yaml.
+    NODE_ENV: development
     DATABASE_URL: postgresql://${POSTGRES_USER:-couple}:${POSTGRES_PASSWORD:?请在.env设置数据库密码}@db:5432/${POSTGRES_DB:-couple}
     APP_URL: ${APP_URL:-http://localhost:33442}
     PORT: 33442

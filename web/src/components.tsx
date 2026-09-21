@@ -17,6 +17,7 @@ import {
   beijingIso,
   dateText,
   personName,
+  requestKey,
   taskStatus,
   type Bootstrap,
   type Product,
@@ -237,6 +238,7 @@ export function TaskForm({
   partner: string;
   scheduled?: boolean;
 }) {
+  const creationKey = useRef(requestKey()).current;
   const [mode, setMode] = useState('ASSIGNED');
   const [kind, setKind] = useState(scheduled ? 'DAILY' : 'NOW');
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -247,6 +249,7 @@ export function TaskForm({
       description: String(form.get('description') || '').trim(),
       reward: Number(form.get('reward')),
       mode,
+      requestKey: creationKey,
     };
     if (kind !== 'NOW') {
       Object.assign(body, { kind, durationHours: Number(form.get('durationHours')) });
@@ -410,6 +413,7 @@ export function ProductForm({
   product?: Product;
   onSave: Save;
 }) {
+  const creationKey = useRef(requestKey()).current;
   const [emoji, setEmoji] = useState(product?.emoji || '🎁');
   const icons = ['🎁', '🍳', '☕', '🎬', '💐', '🧋', '💆', '🏕️', '🧸', '🍰', '💌', '✨'];
   const initial = useRef(product).current;
@@ -427,7 +431,7 @@ export function ProductForm({
       for (const key of Object.keys(body) as (keyof Product)[])
         if (body[key] === initial[key]) delete body[key];
       if (!Object.keys(body).length) body.title = initial.title;
-    }
+    } else body.requestKey = creationKey;
     await onSave(body);
   }
   return (

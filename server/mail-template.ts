@@ -197,6 +197,11 @@ const eventCopy: Record<string, { emoji: string; lead: string; button: string }>
     lead: '确认一下收信地址，让两个人的小提醒顺利找到你。',
     button: '验证我的邮箱',
   },
+  PASSWORD_RESET: {
+    emoji: '🔑',
+    lead: '为账号换一个安心的新密码，再回来记录你们的日常。',
+    button: '重置登录密码',
+  },
   PAIRED: {
     emoji: '💕',
     lead: '两个人终于到齐啦，从一个小约定开始你们的日常吧。',
@@ -237,7 +242,7 @@ function mailAction(body: string, kind: string, appUrl: string) {
   const trailing = /(?:^|\n)打开两个人[：:]\s*(\S+)\s*$/u.exec(body);
   const candidates = trailing
     ? [{ value: trailing[1], start: trailing.index, length: trailing[0].length }]
-    : kind === 'VERIFY_EMAIL'
+    : ['VERIFY_EMAIL', 'PASSWORD_RESET'].includes(kind)
       ? [...body.matchAll(/^[ \t]*(https?:\/\/[^\s<>]+)[ \t]*$/gimu)].map((match) => ({
           value: match[1],
           start: match.index!,
@@ -281,7 +286,10 @@ export function renderMail(input: {
         `<p style="margin:0 0 14px;font-size:16px;line-height:1.85;word-break:break-word;overflow-wrap:anywhere;">${escapeHtml(paragraph).replace(/\r?\n/g, '<br>')}</p>`,
     )
     .join('');
-  const button = kind === 'VERIFY_EMAIL' && !action.specific ? '打开两个人' : copy.button;
+  const button =
+    ['VERIFY_EMAIL', 'PASSWORD_RESET'].includes(kind) && !action.specific
+      ? '打开两个人'
+      : copy.button;
   const actionHtml = action.url
     ? `<table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:0 auto;">
         <tr><td align="center" bgcolor="${theme.accent}" style="border-radius:14px;background-color:${theme.accent};mso-padding-alt:16px 28px;">
@@ -294,7 +302,9 @@ export function renderMail(input: {
   const footer =
     kind === 'VERIFY_EMAIL'
       ? '如果这次验证不是你发起的，可以忽略这封邮件。'
-      : '邮件提醒可以在「我们的空间」中调整；站内通知会为你保留。';
+      : kind === 'PASSWORD_RESET'
+        ? '这是账号安全邮件。如果不是你发起的，可以忽略；你的密码不会改变。'
+        : '邮件提醒可以在「我们的空间」中调整；站内通知会为你保留。';
   const html = `<!DOCTYPE html>
 <html lang="zh-CN">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="${theme.id === 'night' ? 'dark' : 'light'}"><title>${escapeHtml(input.subject)}</title></head>

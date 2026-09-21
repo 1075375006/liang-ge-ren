@@ -7,3 +7,6 @@ dist
 backups
 test-results
 *.log
+coverage
+.DS_Store
+docs/screenshots

@@ -4,6 +4,7 @@ import { DateTime } from 'luxon';
 import { query, transaction } from './db.js';
 import { notify, smtpConfigured } from './notify.js';
 import { renderMail } from './mail-template.js';
+import { runMaintenance } from './maintenance.js';
 import {
   nextOccurrence,
   recoverableOccurrence,
@@ -39,6 +40,7 @@ type OutboxRow = {
 
 // Recheck eligibility at delivery time: settings and verification tokens can change after enqueueing.
 const mailIneligibleReason = `CASE
+  WHEN recipient.deleted_at IS NOT NULL THEN '账号已注销，此邮件不再发送'
   WHEN recipient.email IS NULL OR lower(recipient.email)<>lower(mail.to_email) THEN '收件邮箱已变更，此邮件不再发送'
   WHEN mail.kind='VERIFY_EMAIL' AND recipient.email_verified THEN '邮箱已验证，无需再发送验证邮件'
   WHEN mail.kind='VERIFY_EMAIL' AND NOT EXISTS (
@@ -46,20 +48,32 @@ const mailIneligibleReason = `CASE
     WHERE token.id=mail.email_token_id AND token.user_id=mail.user_id
       AND token.used_at IS NULL AND token.expires_at>$1
   ) THEN '验证链接已过期或失效，请重新申请验证邮件'
-  WHEN mail.kind<>'VERIFY_EMAIL' AND NOT recipient.email_verified THEN '邮箱尚未验证，业务邮件不再发送'
-  WHEN mail.kind<>'VERIFY_EMAIL' AND NOT recipient.notify_email THEN '邮件提醒已关闭，此邮件不再发送'
+  WHEN mail.kind='PASSWORD_RESET' AND NOT EXISTS (
+    SELECT 1 FROM password_reset_tokens AS token
+    WHERE token.id=mail.password_reset_token_id AND token.user_id=mail.user_id
+      AND token.used_at IS NULL AND token.expires_at>$1
+  ) THEN '重置链接已过期或失效，请重新申请'
+  WHEN mail.kind NOT IN ('VERIFY_EMAIL','PASSWORD_RESET') AND NOT recipient.email_verified THEN '邮箱尚未验证，业务邮件不再发送'
+  WHEN mail.kind NOT IN ('VERIFY_EMAIL','PASSWORD_RESET') AND NOT recipient.notify_email THEN '邮件提醒已关闭，此邮件不再发送'
   ELSE NULL END`;
 
 /** Each plan is locked before generating its one latest, still-valid occurrence. */
 export async function runScheduler(now: Date = new Date()) {
   return transaction(async (client) => {
+    // Lock affected spaces before plans, matching account archival's lock order.
+    const { rows: lockedSpaces } = await client.query(
+      `SELECT id FROM spaces WHERE archived_at IS NULL AND id IN (
+      SELECT space_id FROM schedules WHERE active AND next_run_at <= $1 ORDER BY next_run_at,id LIMIT 50
+    ) ORDER BY id FOR SHARE`,
+      [now],
+    );
     const { rows: schedules } = await client.query<ScheduleRow>(
       `
       SELECT * FROM schedules
-      WHERE active AND next_run_at <= $1
+      WHERE active AND next_run_at <= $1 AND space_id=ANY($2::uuid[]) AND EXISTS (SELECT 1 FROM spaces WHERE id=schedules.space_id AND archived_at IS NULL)
       ORDER BY next_run_at, id
       LIMIT 50 FOR UPDATE SKIP LOCKED`,
-      [now],
+      [now, lockedSpaces.map((space) => space.id)],
     );
     let created = 0;
     let skipped = 0;
@@ -306,12 +320,23 @@ export async function tick(now: Date = new Date()) {
   try {
     const scheduler = await runScheduler(now);
     const mail = await runMailBatch(now);
+    const maintenance = await runMaintenance(now).catch(() => {
+      console.error('[worker] 过期数据清理失败；业务调度已完成，下次轮询重试');
+      return { failed: true };
+    });
     await query(
       `INSERT INTO worker_heartbeat (name,last_seen_at,last_error) VALUES ('main',$1,$2)
       ON CONFLICT (name) DO UPDATE SET last_seen_at=EXCLUDED.last_seen_at,last_error=EXCLUDED.last_error`,
-      [now, mail.failed > 0 ? `本轮 ${mail.failed} 封邮件发送失败，请查看邮件队列` : null],
+      [
+        now,
+        'failed' in maintenance
+          ? '过期数据清理失败，请检查后台日志'
+          : mail.failed > 0
+            ? `本轮 ${mail.failed} 封邮件发送失败，请查看邮件队列`
+            : null,
+      ],
     );
-    return { scheduler, mail };
+    return { scheduler, mail, maintenance };
   } catch (error) {
     await query(
       `INSERT INTO worker_heartbeat (name,last_seen_at,last_error) VALUES ('main',$1,$2)

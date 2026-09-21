@@ -1,6 +1,8 @@
 import 'dotenv/config';
 import { buildApp } from './app.js';
 import { pool } from './db.js';
+import { validateProductionConfig } from './config.js';
+validateProductionConfig();
 
 const app = await buildApp();
 const shutdown = async () => {

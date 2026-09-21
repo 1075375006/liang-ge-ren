@@ -11,6 +11,12 @@ import { query, transaction } from './db.js';
 import { notify, smtpConfigured } from './notify.js';
 import { EMAIL_THEMES, buildMailPreview } from './mail-template.js';
 import { nextOccurrence } from './schedule-time.js';
+import { registrationOpen, requireVerifiedEmail } from './config.js';
+import { registerAccountRoutes } from './account.js';
+import { registerPrivacyRoutes } from './privacy.js';
+import { registerListRoutes } from './listing.js';
+import { enqueueVerification } from './verification.js';
+import { createRecordOnce, creationRequestKey } from './creation.js';
 import {
   appId,
   authorizationUrl,
@@ -38,6 +44,7 @@ type User = {
   notify_email: boolean;
   email_theme: string;
   wechat_bound: boolean;
+  has_password?: boolean;
 };
 declare module 'fastify' {
   interface FastifyRequest {
@@ -65,6 +72,7 @@ function publicUser(user: User) {
     notifyEmail: user.notify_email,
     emailTheme: user.email_theme ?? 'strawberry',
     wechatBound: user.wechat_bound,
+    hasPassword: user.has_password ?? Boolean(user.password_hash),
   };
 }
 function camel(value: unknown): any {
@@ -90,13 +98,16 @@ async function spaceContext(request: FastifyRequest, requirePair = true) {
     [user.id],
   );
   if (!space) fail(403, '请先创建或加入两个人的空间');
+  if (requireVerifiedEmail() && !user.email_verified) fail(403, '请先验证邮箱');
+  if (space.archived_at && request.method !== 'GET')
+    fail(409, '空间已关闭，仅可导出或查看历史记录');
   const {
     rows: [partner],
   } = await query(
     `SELECT u.id,u.name FROM memberships m JOIN users u ON u.id=m.user_id WHERE m.space_id=$1 AND m.user_id<>$2`,
     [space.id, user.id],
   );
-  if (requirePair && !partner) fail(409, '邀请伴侣加入后就可以使用这个功能');
+  if (requirePair && (!partner || space.archived_at)) fail(409, '邀请伴侣加入后就可以使用这个功能');
   return { user, space, partner: partner ?? null };
 }
 const idParam = (request: FastifyRequest) =>
@@ -119,6 +130,19 @@ const productFields = {
   price: z.number().int().min(1).max(100000),
   stock: z.number().int().min(0).max(100000),
 };
+async function spaceTransaction<T>(
+  spaceId: string,
+  operation: (client: PoolClient) => Promise<T>,
+): Promise<T> {
+  return transaction(async (client) => {
+    const current = await client.query(
+      'SELECT id FROM spaces WHERE id=$1 AND archived_at IS NULL FOR SHARE',
+      [spaceId],
+    );
+    if (!current.rowCount) fail(409, '空间已关闭，请刷新后查看');
+    return operation(client);
+  });
+}
 function invitation() {
   return randomBytes(9).toString('hex').toUpperCase();
 }
@@ -191,16 +215,35 @@ export async function buildApp(options: { wechatFetch?: typeof fetch } = {}) {
         }
       : false,
     bodyLimit: 32 * 1024,
+    trustProxy: process.env.TRUST_PROXY
+      ? process.env.TRUST_PROXY.split(',')
+          .map((value) => value.trim())
+          .filter(Boolean)
+      : false,
+    requestTimeout: 30_000,
+    connectionTimeout: 10_000,
   });
   await app.register(cookie);
   await app.register(rateLimit, {
-    global: false,
-    errorResponseBuilder: () => ({ error: '操作太频繁，请稍后再试' }),
+    global: true,
+    hook: 'preHandler',
+    max: 600,
+    timeWindow: '1 minute',
+    keyGenerator: (request) => request.currentUser?.id ?? request.ip,
+    errorResponseBuilder: () => ({ statusCode: 429, error: '操作太频繁，请稍后再试' }),
   });
   app.decorateRequest('currentUser', null);
   app.addHook('onRequest', async (request, reply) => {
     reply.header('X-Content-Type-Options', 'nosniff');
-    reply.header('Referrer-Policy', 'strict-origin-when-cross-origin');
+    reply.header('Referrer-Policy', 'no-referrer');
+    reply.header('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+    if (process.env.NODE_ENV === 'production') {
+      reply.header('Strict-Transport-Security', 'max-age=31536000');
+      reply.header(
+        'Content-Security-Policy',
+        "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-src 'self' about:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
+      );
+    }
     reply.header('X-Frame-Options', 'DENY');
     if (request.url.startsWith('/api')) reply.header('Cache-Control', 'no-store');
     if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method)) {
@@ -225,9 +268,9 @@ export async function buildApp(options: { wechatFetch?: typeof fetch } = {}) {
     const {
       rows: [user],
     } = await query<User>(
-      `SELECT u.id,u.name,u.email,u.email_verified,u.notify_email,u.email_theme,
+      `SELECT u.id,u.name,u.email,u.email_verified,u.notify_email,u.email_theme,(u.password_hash IS NOT NULL) AS has_password,
         EXISTS(SELECT 1 FROM auth_identities ai WHERE ai.user_id=u.id AND ai.provider='beichen-wx' AND ai.app_id=$2) AS wechat_bound
-       FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=$1 AND s.expires_at>now()`,
+       FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=$1 AND s.expires_at>now() AND u.deleted_at IS NULL`,
       [digest(token), process.env.BEICHEN_APP_ID ?? ''],
     );
     request.currentUser = user ?? null;
@@ -253,6 +296,17 @@ export async function buildApp(options: { wechatFetch?: typeof fetch } = {}) {
     await query('SELECT 1');
     return { ok: true };
   });
+  app.get('/api/ready', async (_request, reply) => {
+    await query('SELECT 1');
+    const {
+      rows: [worker],
+    } = await query(
+      "SELECT last_seen_at > now()-interval '2 minutes' AND last_error IS NULL AS healthy FROM worker_heartbeat WHERE name='main'",
+    );
+    return reply
+      .code(worker?.healthy ? 200 : 503)
+      .send({ ok: Boolean(worker?.healthy), version: process.env.APP_VERSION || 'development' });
+  });
   app.get('/api/status', async (request) => {
     loggedIn(request);
     const {
@@ -262,24 +316,38 @@ export async function buildApp(options: { wechatFetch?: typeof fetch } = {}) {
   });
   app.post(
     '/api/auth/register',
-    { config: { rateLimit: { max: 20, timeWindow: '1 minute' } } },
+    {
+      config: {
+        rateLimit: {
+          max: 20,
+          timeWindow: '1 minute',
+          keyGenerator: (request: FastifyRequest) => request.ip,
+        },
+      },
+    },
     async (request, reply) => {
+      if (!registrationOpen()) fail(503, '暂时停止新账号注册，请稍后再来');
+      if (requireVerifiedEmail() && !smtpConfigured()) fail(503, '邮件服务尚未就绪，请稍后注册');
       const input = z
         .object({
+          acceptTerms: z.boolean().optional(),
           name: z.string().trim().min(1, '请填写昵称').max(40),
           email: emailField,
           password: passwordField,
         })
         .parse(request.body);
+      if (requireVerifiedEmail() && !input.acceptTerms)
+        fail(400, '请先阅读并同意使用条款与隐私说明');
       const hash = await hashPassword(input.password);
       const result = await transaction(async (client) => {
         const {
           rows: [user],
         } = await client.query<User>(
-          `INSERT INTO users (name,email,password_hash) VALUES ($1,$2,$3) RETURNING id,name,email,email_verified,notify_email,email_theme,false AS wechat_bound`,
-          [input.name, input.email, hash],
+          `INSERT INTO users (name,email,password_hash,terms_accepted_at) VALUES ($1,$2,$3,$4) RETURNING id,name,email,email_verified,notify_email,email_theme,false AS wechat_bound,true AS has_password`,
+          [input.name, input.email, hash, input.acceptTerms ? new Date() : null],
         );
         await client.query('INSERT INTO wallets (user_id) VALUES ($1)', [user.id]);
+        if (smtpConfigured()) await enqueueVerification(client, user);
         const session = await createSession(client, user.id);
         return { user, session };
       });
@@ -289,23 +357,34 @@ export async function buildApp(options: { wechatFetch?: typeof fetch } = {}) {
   );
   app.post(
     '/api/auth/login',
-    { config: { rateLimit: { max: 20, timeWindow: '1 minute' } } },
+    {
+      config: {
+        rateLimit: {
+          max: 20,
+          timeWindow: '1 minute',
+          keyGenerator: (request: FastifyRequest) => request.ip,
+        },
+      },
+    },
     async (request, reply) => {
       const input = z.object({ email: emailField, password: passwordField }).parse(request.body);
-      const {
-        rows: [user],
-      } = await query<User & { password_hash: string | null }>(
-        `SELECT u.*,
+      const { user, session } = await transaction(async (client) => {
+        const {
+          rows: [user],
+        } = await client.query<User & { password_hash: string | null }>(
+          `SELECT u.*,
         EXISTS(SELECT 1 FROM auth_identities ai WHERE ai.user_id=u.id AND ai.provider='beichen-wx' AND ai.app_id=$2) AS wechat_bound
-        FROM users u WHERE email=$1`,
-        [input.email, process.env.BEICHEN_APP_ID ?? ''],
-      );
-      // Perform the same expensive derivation for unknown users to reduce account probing.
-      const hash =
-        user?.password_hash ?? 'scrypt$00000000000000000000000000000000$' + '00'.repeat(64);
-      const passwordMatches = await verifyPassword(input.password, hash);
-      if (!user?.password_hash || !passwordMatches) fail(401, '邮箱或密码不正确');
-      const session = await transaction((client) => createSession(client, user.id));
+        FROM users u WHERE email=$1 AND u.deleted_at IS NULL FOR UPDATE OF u`,
+          [input.email, process.env.BEICHEN_APP_ID ?? ''],
+        );
+        // Perform the same expensive derivation for unknown users to reduce account probing.
+        const hash =
+          user?.password_hash ?? 'scrypt$00000000000000000000000000000000$' + '00'.repeat(64);
+        const passwordMatches = await verifyPassword(input.password, hash);
+        if (!user?.password_hash || !passwordMatches) fail(401, '邮箱或密码不正确');
+        const session = await createSession(client, user.id);
+        return { user, session };
+      });
       setSessionCookie(reply, session);
       return { user: publicUser(user) };
     },
@@ -322,7 +401,11 @@ export async function buildApp(options: { wechatFetch?: typeof fetch } = {}) {
     { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } },
     async (request, reply) => {
       if (!wechatEnabled()) fail(503, '微信登录暂未启用');
-      const intent = z.object({ intent: z.enum(['login', 'bind']) }).parse(request.body).intent;
+      const { intent, acceptTerms } = z
+        .object({ intent: z.enum(['login', 'bind']), acceptTerms: z.boolean().optional() })
+        .parse(request.body);
+      if (intent === 'login' && requireVerifiedEmail() && !acceptTerms)
+        fail(400, '请先同意使用条款与隐私说明');
       const current = request.currentUser;
       if (intent === 'login' && current) fail(409, '你已经登录，请在账户设置中绑定微信');
       if (intent === 'bind' && !current) fail(401, '请先登录原账号再绑定微信');
@@ -432,17 +515,22 @@ export async function buildApp(options: { wechatFetch?: typeof fetch } = {}) {
         const {
           rows: [identity],
         } = await client.query(
-          'SELECT * FROM auth_identities WHERE provider=$1 AND app_id=$2 AND provider_uid=$3 FOR UPDATE',
+          'SELECT * FROM auth_identities WHERE provider=$1 AND app_id=$2 AND provider_uid=$3',
           ['beichen-wx', appId(), profile.social_uid],
         );
         if (stateRow.intent === 'bind') {
+          // Account first, matching password reset and deletion lock order.
+          const currentAccount = await client.query(
+            'SELECT id FROM users WHERE id=$1 AND deleted_at IS NULL FOR UPDATE',
+            [stateRow.user_id],
+          );
+          if (!currentAccount.rowCount) return { reason: 'session_changed' as const };
           // Recheck after the external request; logout may have revoked the session meanwhile.
           const activeSession = await client.query(
             'SELECT token_hash FROM sessions WHERE token_hash=$1 AND user_id=$2 AND expires_at>now() FOR UPDATE',
             [stateRow.session_hash, stateRow.user_id],
           );
           if (!activeSession.rowCount) return { reason: 'session_changed' as const };
-          await client.query('SELECT id FROM users WHERE id=$1 FOR UPDATE', [stateRow.user_id]);
           if (identity && identity.user_id !== stateRow.user_id) return { conflict: true };
           const existingBinding = await client.query(
             'SELECT provider_uid FROM auth_identities WHERE provider=$1 AND app_id=$2 AND user_id=$3',
@@ -466,11 +554,19 @@ export async function buildApp(options: { wechatFetch?: typeof fetch } = {}) {
           return { session, intent: 'bind' as const };
         }
         let userId = identity?.user_id as string | undefined;
+        if (userId) {
+          const currentAccount = await client.query(
+            'SELECT id FROM users WHERE id=$1 AND deleted_at IS NULL FOR UPDATE',
+            [userId],
+          );
+          if (!currentAccount.rowCount) return { reason: 'session_changed' as const };
+        }
         if (!userId) {
+          if (!registrationOpen()) return { reason: 'disabled' as const };
           const {
             rows: [created],
           } = await client.query(
-            `INSERT INTO users(name,email,password_hash) VALUES($1,NULL,NULL) RETURNING id`,
+            `INSERT INTO users(name,email,password_hash,terms_accepted_at) VALUES($1,NULL,NULL,now()) RETURNING id`,
             [profile.nickname],
           );
           userId = created.id;
@@ -503,7 +599,20 @@ export async function buildApp(options: { wechatFetch?: typeof fetch } = {}) {
     const url = new URL(process.env.APP_URL ?? 'http://localhost:33442');
     url.searchParams.set('verify', token);
     await transaction(async (client) => {
-      await client.query('SELECT id FROM users WHERE id=$1 FOR UPDATE', [user.id]);
+      const activeUser = await client.query(
+        'SELECT id FROM users WHERE id=$1 AND deleted_at IS NULL FOR UPDATE',
+        [user.id],
+      );
+      if (
+        !activeUser.rowCount ||
+        !(
+          await client.query(
+            'SELECT 1 FROM sessions WHERE token_hash=$1 AND user_id=$2 AND expires_at>now()',
+            [digest(request.cookies[SESSION_COOKIE] || ''), user.id],
+          )
+        ).rowCount
+      )
+        fail(401, '登录状态已失效，请重新登录');
       const {
         rows: [existing],
       } = await client.query('SELECT id FROM users WHERE email=$1', [email]);
@@ -549,6 +658,11 @@ export async function buildApp(options: { wechatFetch?: typeof fetch } = {}) {
       stats: { open: 0, claimed: 0, review: 0, completed: 0 },
       smtpConfigured: smtpConfigured(),
       wechatEnabled: wechatEnabled(),
+      requireVerifiedEmail: requireVerifiedEmail(),
+      registrationOpen: registrationOpen(),
+      supportEmail: process.env.SUPPORT_EMAIL || '',
+      operatorName: process.env.OPERATOR_NAME || '本站运营方',
+      version: process.env.APP_VERSION || 'development',
     };
     if (!user) return result;
     const {
@@ -586,9 +700,23 @@ export async function buildApp(options: { wechatFetch?: typeof fetch } = {}) {
   });
   app.post('/api/spaces', async (request) => {
     const user = loggedIn(request);
+    if (requireVerifiedEmail() && !user.email_verified) fail(403, '请先验证邮箱，再创建空间');
     const input = z.object({ name: z.string().trim().min(1).max(60) }).parse(request.body);
     const space = await transaction(async (client) => {
-      await client.query('SELECT id FROM users WHERE id=$1 FOR UPDATE', [user.id]);
+      const activeUser = await client.query(
+        'SELECT id FROM users WHERE id=$1 AND deleted_at IS NULL FOR UPDATE',
+        [user.id],
+      );
+      if (
+        !activeUser.rowCount ||
+        !(
+          await client.query(
+            'SELECT 1 FROM sessions WHERE token_hash=$1 AND user_id=$2 AND expires_at>now()',
+            [digest(request.cookies[SESSION_COOKIE] || ''), user.id],
+          )
+        ).rowCount
+      )
+        fail(401, '登录状态已失效，请重新登录');
       if ((await client.query('SELECT 1 FROM memberships WHERE user_id=$1', [user.id])).rowCount)
         fail(409, '你已经有一个空间了');
       const {
@@ -607,20 +735,42 @@ export async function buildApp(options: { wechatFetch?: typeof fetch } = {}) {
   });
   app.post(
     '/api/spaces/join',
-    { config: { rateLimit: { max: 20, timeWindow: '1 minute' } } },
+    {
+      config: {
+        rateLimit: {
+          max: 20,
+          timeWindow: '1 minute',
+          keyGenerator: (request: FastifyRequest) => request.ip,
+        },
+      },
+    },
     async (request) => {
       const user = loggedIn(request);
+      if (requireVerifiedEmail() && !user.email_verified) fail(403, '请先验证邮箱，再加入空间');
       const { code } = z
         .object({ code: z.string().trim().toUpperCase().min(6).max(64) })
         .parse(request.body);
       const space = await transaction(async (client) => {
-        await client.query('SELECT id FROM users WHERE id=$1 FOR UPDATE', [user.id]);
+        const activeUser = await client.query(
+          'SELECT id FROM users WHERE id=$1 AND deleted_at IS NULL FOR UPDATE',
+          [user.id],
+        );
+        if (
+          !activeUser.rowCount ||
+          !(
+            await client.query(
+              'SELECT 1 FROM sessions WHERE token_hash=$1 AND user_id=$2 AND expires_at>now()',
+              [digest(request.cookies[SESSION_COOKIE] || ''), user.id],
+            )
+          ).rowCount
+        )
+          fail(401, '登录状态已失效，请重新登录');
         if ((await client.query('SELECT 1 FROM memberships WHERE user_id=$1', [user.id])).rowCount)
           fail(409, '你已经加入了一个空间');
         const {
           rows: [found],
         } = await client.query(
-          'SELECT * FROM spaces WHERE invite_code=$1 AND invite_expires_at>now() FOR UPDATE',
+          'SELECT * FROM spaces WHERE invite_code=$1 AND invite_expires_at>now() AND archived_at IS NULL FOR UPDATE',
           [code],
         );
         if (!found) fail(409, '邀请码不存在、已过期或已被使用');
@@ -654,7 +804,11 @@ export async function buildApp(options: { wechatFetch?: typeof fetch } = {}) {
   app.post('/api/spaces/invite', async (request) => {
     const { space } = await spaceContext(request, false);
     const updated = await transaction(async (client) => {
-      await client.query('SELECT id FROM spaces WHERE id=$1 FOR UPDATE', [space.id]);
+      const activeSpace = await client.query(
+        'SELECT id FROM spaces WHERE id=$1 AND archived_at IS NULL FOR UPDATE',
+        [space.id],
+      );
+      if (!activeSpace.rowCount) fail(409, '空间已经关闭');
       const members = await client.query('SELECT 1 FROM memberships WHERE space_id=$1', [space.id]);
       if (members.rowCount !== 1) fail(409, '伴侣已加入，无需邀请');
       const {
@@ -683,10 +837,11 @@ export async function buildApp(options: { wechatFetch?: typeof fetch } = {}) {
     const {
       rows: [updated],
     } = await query<User>(
-      `UPDATE users SET notify_email=COALESCE($2,notify_email),email_theme=COALESCE($3,email_theme) WHERE id=$1 RETURNING id,name,email,email_verified,notify_email,email_theme,
+      `UPDATE users SET notify_email=COALESCE($2,notify_email),email_theme=COALESCE($3,email_theme) WHERE id=$1 AND deleted_at IS NULL RETURNING id,name,email,email_verified,notify_email,email_theme,(password_hash IS NOT NULL) AS has_password,
        EXISTS(SELECT 1 FROM auth_identities ai WHERE ai.user_id=users.id AND ai.provider='beichen-wx' AND ai.app_id=$4) AS wechat_bound`,
       [user.id, notifyEmail ?? null, emailTheme ?? null, process.env.BEICHEN_APP_ID ?? ''],
     );
+    if (!updated) fail(401, '账号状态已变化，请重新登录');
     return { user: publicUser(updated) };
   });
   app.get('/api/mail/templates', async (request) => {
@@ -707,7 +862,20 @@ export async function buildApp(options: { wechatFetch?: typeof fetch } = {}) {
       const url = new URL(process.env.APP_URL ?? 'http://localhost:33442');
       url.searchParams.set('verify', token);
       await transaction(async (client) => {
-        await client.query('SELECT id FROM users WHERE id=$1 FOR UPDATE', [user.id]);
+        const activeUser = await client.query(
+          'SELECT id FROM users WHERE id=$1 AND deleted_at IS NULL FOR UPDATE',
+          [user.id],
+        );
+        if (
+          !activeUser.rowCount ||
+          !(
+            await client.query(
+              'SELECT 1 FROM sessions WHERE token_hash=$1 AND user_id=$2 AND expires_at>now()',
+              [digest(request.cookies[SESSION_COOKIE] || ''), user.id],
+            )
+          ).rowCount
+        )
+          fail(401, '登录状态已失效，请重新登录');
         await client.query(
           'UPDATE email_tokens SET used_at=now() WHERE user_id=$1 AND used_at IS NULL',
           [user.id],
@@ -735,7 +903,15 @@ export async function buildApp(options: { wechatFetch?: typeof fetch } = {}) {
   );
   app.post(
     '/api/auth/verify',
-    { config: { rateLimit: { max: 20, timeWindow: '1 minute' } } },
+    {
+      config: {
+        rateLimit: {
+          max: 20,
+          timeWindow: '1 minute',
+          keyGenerator: (request: FastifyRequest) => request.ip,
+        },
+      },
+    },
     async (request) => {
       const { token } = z
         .object({ token: z.string().regex(/^[a-f0-9]{64}$/, '验证链接无效') })
@@ -767,52 +943,52 @@ export async function buildApp(options: { wechatFetch?: typeof fetch } = {}) {
     },
   );
 
-  app.get('/api/tasks', async (request) => {
-    const { space } = await spaceContext(request, false);
-    const [tasks, schedules] = await Promise.all([
-      query('SELECT * FROM tasks WHERE space_id=$1 ORDER BY created_at DESC LIMIT 200', [space.id]),
-      query('SELECT * FROM schedules WHERE space_id=$1 ORDER BY created_at DESC LIMIT 200', [
-        space.id,
-      ]),
-    ]);
-    return { tasks: camel(tasks.rows), schedules: camel(schedules.rows) };
-  });
   app.post('/api/tasks', async (request) => {
     const { user, space, partner } = await spaceContext(request);
-    const input = z.object({ ...taskFields, dueAt: dueDate.nullish() }).parse(request.body);
-    if (input.dueAt && new Date(input.dueAt).getTime() <= Date.now())
-      fail(400, '截止时间需要晚于现在');
-    const task = await transaction(async (client) => {
-      const {
-        rows: [created],
-      } = await client.query(
-        `INSERT INTO tasks(space_id,creator_id,assigned_to,title,description,reward,mode,due_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
-        [
-          space.id,
-          user.id,
-          input.mode === 'ASSIGNED' ? partner.id : null,
-          input.title,
-          input.description,
-          input.reward,
-          input.mode,
-          input.dueAt ?? null,
-        ],
-      );
-      await notify(client, {
-        userId: partner.id,
-        spaceId: space.id,
-        title: input.mode === 'RACE' ? '有一件可以抢的小事' : '收到一个新约定',
-        body: `${user.name} 发布了「${input.title}」，快来领取吧！完成并通过验收可获得 ${input.reward} 积分。${input.description ? `\n约定内容：${input.description}` : ''}`,
-        kind: 'TASK_CREATED',
-        actionPath: `/?page=tasks&task=${created.id}`,
-      });
-      return created;
-    });
+    const { requestKey, ...fields } = z
+      .object({ ...taskFields, dueAt: dueDate.nullish(), requestKey: creationRequestKey })
+      .parse(request.body);
+    const input = { ...fields, dueAt: fields.dueAt ? new Date(fields.dueAt).toISOString() : null };
+    const task = await spaceTransaction(space.id, (client) =>
+      createRecordOnce(
+        client,
+        { userId: user.id, spaceId: space.id, kind: 'task', requestKey, payload: input },
+        async () => {
+          if (input.dueAt && new Date(input.dueAt).getTime() <= Date.now())
+            fail(400, '截止时间需要晚于现在');
+          const {
+            rows: [created],
+          } = await client.query(
+            `INSERT INTO tasks(space_id,creator_id,assigned_to,title,description,reward,mode,due_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+            [
+              space.id,
+              user.id,
+              input.mode === 'ASSIGNED' ? partner.id : null,
+              input.title,
+              input.description,
+              input.reward,
+              input.mode,
+              input.dueAt,
+            ],
+          );
+          await notify(client, {
+            userId: partner.id,
+            spaceId: space.id,
+            title: input.mode === 'RACE' ? '有一件可以抢的小事' : '收到一个新约定',
+            body: `${user.name} 发布了「${input.title}」，快来领取吧！完成并通过验收可获得 ${input.reward} 积分。${input.description ? `\n约定内容：${input.description}` : ''}`,
+            kind: 'TASK_CREATED',
+            actionPath: `/?page=tasks&task=${created.id}`,
+          });
+          return created;
+        },
+        fail,
+      ),
+    );
     return { task: camel(task) };
   });
   app.post('/api/tasks/:id/claim', async (request) => {
     const { user, space, partner } = await spaceContext(request);
-    const task = await transaction(async (client) => {
+    const task = await spaceTransaction(space.id, async (client) => {
       const existing = await lockTask(client, idParam(request), space.id);
       if (existing.mode === 'ASSIGNED' && existing.assigned_to !== user.id)
         fail(403, '这个任务指定给另一位成员');
@@ -840,7 +1016,7 @@ export async function buildApp(options: { wechatFetch?: typeof fetch } = {}) {
   });
   app.post('/api/tasks/:id/release', async (request) => {
     const { user, space } = await spaceContext(request);
-    const task = await transaction(async (client) => {
+    const task = await spaceTransaction(space.id, async (client) => {
       const existing = await lockTask(client, idParam(request), space.id);
       if (existing.claimant_id !== user.id) fail(403, '只有领取人可以放弃任务');
       if (existing.status !== 'CLAIMED') fail(409, '当前任务不能放弃');
@@ -867,7 +1043,7 @@ export async function buildApp(options: { wechatFetch?: typeof fetch } = {}) {
           .transform((value) => value || null),
       })
       .parse(request.body ?? {});
-    const task = await transaction(async (client) => {
+    const task = await spaceTransaction(space.id, async (client) => {
       const existing = await lockTask(client, idParam(request), space.id);
       if (existing.claimant_id !== user.id) fail(403, '只有领取人可以提交');
       if (existing.status !== 'CLAIMED') fail(409, '当前任务不能提交');
@@ -896,7 +1072,7 @@ export async function buildApp(options: { wechatFetch?: typeof fetch } = {}) {
       .object({ approve: z.boolean(), note: z.string().trim().max(2000).optional() })
       .parse(request.body);
     if (!input.approve && !input.note) fail(400, '请填写退回原因');
-    const task = await transaction(async (client) => {
+    const task = await spaceTransaction(space.id, async (client) => {
       const existing = await lockTask(client, idParam(request), space.id);
       if (existing.claimant_id === user.id) fail(403, '不能验收自己完成的任务');
       if (existing.status === 'APPROVED' && input.approve) return existing;
@@ -933,7 +1109,7 @@ export async function buildApp(options: { wechatFetch?: typeof fetch } = {}) {
   });
   app.post('/api/tasks/:id/cancel', async (request) => {
     const { user, space } = await spaceContext(request);
-    const task = await transaction(async (client) => {
+    const task = await spaceTransaction(space.id, async (client) => {
       const existing = await lockTask(client, idParam(request), space.id);
       if (existing.creator_id !== user.id) fail(403, '只有发布者可以取消任务');
       if (existing.status === 'CANCELLED') return existing;
@@ -949,7 +1125,7 @@ export async function buildApp(options: { wechatFetch?: typeof fetch } = {}) {
   });
   app.post('/api/schedules', async (request) => {
     const { user, space, partner } = await spaceContext(request);
-    const input = z
+    const { requestKey, ...fields } = z
       .object({
         ...taskFields,
         kind: z.enum(['ONCE', 'DAILY', 'WEEKLY']),
@@ -960,39 +1136,56 @@ export async function buildApp(options: { wechatFetch?: typeof fetch } = {}) {
           .optional(),
         weekday: z.number().int().min(1).max(7).optional(),
         durationHours: z.number().int().min(1).max(168),
+        requestKey: creationRequestKey,
       })
       .parse(request.body);
+    const input = {
+      ...fields,
+      runAt: fields.runAt ? new Date(fields.runAt).toISOString() : null,
+      time: fields.time ?? null,
+      weekday: fields.weekday ?? null,
+    };
     if (input.kind === 'ONCE' && !input.runAt) fail(400, '请选择定时发布时间');
     if (input.kind !== 'ONCE' && !input.time) fail(400, '请选择每天的发布时间');
     if (input.kind === 'WEEKLY' && !input.weekday) fail(400, '请选择星期');
-    const next = nextOccurrence(input, new Date());
-    if (!next) fail(400, '发布时间需要晚于现在');
-    const {
-      rows: [schedule],
-    } = await query(
-      `INSERT INTO schedules(space_id,creator_id,assigned_to,title,description,reward,mode,kind,run_at,time,weekday,duration_hours,next_run_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
-      [
-        space.id,
-        user.id,
-        input.mode === 'ASSIGNED' ? partner.id : null,
-        input.title,
-        input.description,
-        input.reward,
-        input.mode,
-        input.kind,
-        input.runAt ?? null,
-        input.time ?? null,
-        input.weekday ?? null,
-        input.durationHours,
-        next,
-      ],
+    const schedule = await spaceTransaction(space.id, (client) =>
+      createRecordOnce(
+        client,
+        { userId: user.id, spaceId: space.id, kind: 'schedule', requestKey, payload: input },
+        async () => {
+          const next = nextOccurrence(input, new Date());
+          if (!next) fail(400, '发布时间需要晚于现在');
+          const {
+            rows: [created],
+          } = await client.query(
+            `INSERT INTO schedules(space_id,creator_id,assigned_to,title,description,reward,mode,kind,run_at,time,weekday,duration_hours,next_run_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
+            [
+              space.id,
+              user.id,
+              input.mode === 'ASSIGNED' ? partner.id : null,
+              input.title,
+              input.description,
+              input.reward,
+              input.mode,
+              input.kind,
+              input.runAt,
+              input.time,
+              input.weekday,
+              input.durationHours,
+              next,
+            ],
+          );
+          return created;
+        },
+        fail,
+      ),
     );
     return { schedule: camel(schedule) };
   });
   app.patch('/api/schedules/:id', async (request) => {
     const { user, space } = await spaceContext(request);
     const { active } = z.object({ active: z.boolean() }).parse(request.body);
-    const schedule = await transaction(async (client) => {
+    const schedule = await spaceTransaction(space.id, async (client) => {
       const {
         rows: [existing],
       } = await client.query('SELECT * FROM schedules WHERE id=$1 AND space_id=$2 FOR UPDATE', [
@@ -1015,22 +1208,34 @@ export async function buildApp(options: { wechatFetch?: typeof fetch } = {}) {
     return { schedule: camel(schedule) };
   });
 
-  app.get('/api/products', async (request) => {
-    const { space } = await spaceContext(request, false);
-    const { rows } = await query(
-      'SELECT * FROM products WHERE space_id=$1 ORDER BY created_at DESC LIMIT 200',
-      [space.id],
-    );
-    return { products: camel(rows) };
-  });
   app.post('/api/products', async (request) => {
     const { user, space } = await spaceContext(request);
-    const input = z.object(productFields).parse(request.body);
-    const {
-      rows: [product],
-    } = await query(
-      'INSERT INTO products(space_id,creator_id,title,description,emoji,price,stock) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING *',
-      [space.id, user.id, input.title, input.description, input.emoji, input.price, input.stock],
+    const { requestKey, ...input } = z
+      .object({ ...productFields, requestKey: creationRequestKey })
+      .parse(request.body);
+    const product = await spaceTransaction(space.id, (client) =>
+      createRecordOnce(
+        client,
+        { userId: user.id, spaceId: space.id, kind: 'product', requestKey, payload: input },
+        async () => {
+          const {
+            rows: [created],
+          } = await client.query(
+            'INSERT INTO products(space_id,creator_id,title,description,emoji,price,stock) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING *',
+            [
+              space.id,
+              user.id,
+              input.title,
+              input.description,
+              input.emoji,
+              input.price,
+              input.stock,
+            ],
+          );
+          return created;
+        },
+        fail,
+      ),
     );
     return { product: camel(product) };
   });
@@ -1041,7 +1246,7 @@ export async function buildApp(options: { wechatFetch?: typeof fetch } = {}) {
       .partial()
       .parse(request.body);
     if (!Object.keys(input).length) fail(400, '请填写要更新的商品信息');
-    const product = await transaction(async (client) => {
+    const product = await spaceTransaction(space.id, async (client) => {
       const {
         rows: [existing],
       } = await client.query('SELECT * FROM products WHERE id=$1 AND space_id=$2 FOR UPDATE', [
@@ -1071,7 +1276,7 @@ export async function buildApp(options: { wechatFetch?: typeof fetch } = {}) {
     const { idempotencyKey } = z
       .object({ idempotencyKey: z.string().trim().min(8, '请使用有效的兑换请求编号').max(128) })
       .parse(request.body);
-    const order = await transaction(async (client) => {
+    const order = await spaceTransaction(space.id, async (client) => {
       await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', [
         `redeem:${user.id}:${idempotencyKey}`,
       ]);
@@ -1131,20 +1336,12 @@ export async function buildApp(options: { wechatFetch?: typeof fetch } = {}) {
     });
     return { order: camel(order) };
   });
-  app.get('/api/orders', async (request) => {
-    const { space } = await spaceContext(request, false);
-    const { rows } = await query(
-      'SELECT * FROM orders WHERE space_id=$1 ORDER BY created_at DESC LIMIT 200',
-      [space.id],
-    );
-    return { orders: camel(rows) };
-  });
   app.post('/api/orders/:id/action', async (request) => {
     const { user, space } = await spaceContext(request);
     const { action } = z
       .object({ action: z.enum(['fulfill', 'complete', 'cancel']) })
       .parse(request.body);
-    const order = await transaction(async (client) => {
+    const order = await spaceTransaction(space.id, async (client) => {
       const {
         rows: [existing],
       } = await client.query('SELECT * FROM orders WHERE id=$1 AND space_id=$2 FOR UPDATE', [
@@ -1217,25 +1414,6 @@ export async function buildApp(options: { wechatFetch?: typeof fetch } = {}) {
     });
     return { order: camel(order) };
   });
-  app.get('/api/ledger', async (request) => {
-    const { user, space } = await spaceContext(request, false);
-    const [wallet, entries] = await Promise.all([
-      query('SELECT balance FROM wallets WHERE user_id=$1', [user.id]),
-      query(
-        'SELECT id,delta,balance_after,reason,created_at FROM point_ledger WHERE user_id=$1 AND space_id=$2 ORDER BY created_at DESC LIMIT 200',
-        [user.id, space.id],
-      ),
-    ]);
-    return { balance: wallet.rows[0]?.balance ?? 0, entries: camel(entries.rows) };
-  });
-  app.get('/api/notifications', async (request) => {
-    const user = loggedIn(request);
-    const { rows } = await query(
-      'SELECT id,title,body,read_at,created_at FROM notifications WHERE user_id=$1 ORDER BY created_at DESC LIMIT 100',
-      [user.id],
-    );
-    return { notifications: camel(rows) };
-  });
   app.post('/api/notifications/read', async (request) => {
     const user = loggedIn(request);
     await query('UPDATE notifications SET read_at=now() WHERE user_id=$1 AND read_at IS NULL', [
@@ -1267,6 +1445,9 @@ export async function buildApp(options: { wechatFetch?: typeof fetch } = {}) {
     },
   );
 
+  await registerAccountRoutes(app, { fail });
+  registerPrivacyRoutes(app, { fail });
+  registerListRoutes(app, { spaceContext, loggedIn, camel });
   const webRoot = resolve(process.cwd(), 'dist/web');
   if (existsSync(resolve(webRoot, 'index.html'))) {
     await app.register(staticFiles, { root: webRoot, prefix: '/' });

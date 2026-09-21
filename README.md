@@ -1,129 +1,59 @@
 # 两个人
 
-两个人的任务、心意积分和心愿小店。手机优先，电脑也能使用。主导航只保留「约定、心愿、我们」，默认打开约定；历史约定、兑换记录、积分、定时计划、消息与账号及邮件设置统一从「我们」进入。
+情侣的约定、心意积分和心愿小店。手机优先，主导航只保留「约定、心愿、我们」；历史记录、定时计划、消息、账号安全与邮件偏好从「我们」进入。完成约定可以直接提交，留言选填，始终由另一人验收。
 
-源码仓库：[1075375006/liang-ge-ren](https://github.com/1075375006/liang-ge-ren)。默认应用端口为 **33442**。
+源码：[1075375006/liang-ge-ren](https://github.com/1075375006/liang-ge-ren)。产品规则见 [设计文档](docs/设计文档.md)，接口见 [API 契约](docs/API契约.md)，验证证据与未实测边界见 [验收记录](docs/验收记录.md)。
 
-先阅读 [设计文档](docs/设计文档.md) 了解产品规则，[接口契约](docs/API契约.md) 记录实现边界。
+## 一条命令部署到服务器
 
-## 已实现
+在 Ubuntu / Debian 服务器以 root 执行。先把自己的域名解析到服务器，放通 TCP 80、443，并准备真实支持邮箱与 SMTP 服务。替换下面的配置；SMTP 密码通过 `SMTP_PASS` 环境变量提供，安全输入方式及其他系统的安装方法见 [部署与运营](docs/部署运营.md)。
 
-- 邮箱密码注册登录、48 小时一次性邀请码、每个空间最多两人。
-- 可选北辰聚合微信登录：微信直接登录、已有账号绑定、微信新账号补充邮箱。
-- 指定伴侣任务与双方抢单，领取、放弃、提交、通过或退回。
-- 定时一次、每日、每周发布，计划暂停/恢复，北京时间调度。
-- 审核通过获得积分，独立余额与可追溯流水。
-- 双方上架商品、补库存、上下架，支持兑换自己发布的心愿，由另一半兑现，确认及取消退款。
-- 发布、领取、提交、验收和兑换的站内及邮件提醒；六款可预览的可爱邮件模板，各人独立选择；邮箱验证、邮件开关、SMTP 后台发送及失败重试。
-- Docker Compose 应用、后台 worker、PostgreSQL，健康检查及积分对账。
+```sh
+curl -fsSL https://raw.githubusercontent.com/1075375006/liang-ge-ren/main/ops/install.sh | DOMAIN='app.example.com' SUPPORT_EMAIL='help@example.com' SMTP_HOST='smtp.example.com' SMTP_PORT=587 SMTP_SECURE=false SMTP_USER='hello@example.com' SMTP_FROM='hello@example.com' bash
+```
 
-抢单允许发布者本人领取，但始终由另一人审核。积分由任务产生，兑换后消耗，不转给商品发布者。
+安装入口自动准备 Docker、克隆代码并运行部署脚本。生产使用 Caddy HTTPS、应用、worker、私有 PostgreSQL 和每日备份；自动生成随机数据库密码，持久配置保存在 `.local/production/production.env`。更新保留配置和数据，先备份再迁移；应用、后台、SMTP 连接与公网 HTTPS 版本检查通过后才报告成功。已有代码可直接运行 `bash scripts/deploy.sh`。
 
-## Docker 部署
+正式开放默认要求同意条款并验证邮箱。注册会自动发验证邮件，验证后才能创建或加入空间。真实域名、SMTP 凭据与运营联系方式必须由部署环境提供；真实收信、DNS、服务器所在地适用的备案及运营要求仍需在目标环境落实。微信登录是可选项。
 
-需要 Docker Engine/Desktop 与 Compose v2。第一次运行：
+生产维护统一使用：
+
+```sh
+bash scripts/status.sh
+bash scripts/backup.sh
+```
+
+更新、恢复、失败回滚、邮件配置和备份保留策略以 [部署与运营](docs/部署运营.md) 为唯一操作说明。根目录 `compose.yaml` 是本地体验入口，不用于公开运营。
+
+## 主要功能
+
+- 邮箱密码注册、登录、自动验证邮件、忘记密码、修改密码和昵称；可选北辰微信登录与绑定。
+- 每个空间最多两人，48 小时一次性邀请码，跨空间访问受服务端权限约束。
+- 指定伴侣或双方抢单，领取、放弃、提交、验收；一次性、每日和每周计划按北京时间调度。
+- 验收发积分，心愿上架、补库存、兑换、兑现、确认与取消退款。可以兑换自己发布的心愿，始终由另一半兑现。
+- 六款个人邮件主题、站内通知和邮件失败重试。列表支持服务端分页、约定搜索及筛选，旧邮件链接可以直接定位历史记录。
+- 导出本人及当前共同空间数据、关闭空间、离开已关闭空间重新配对、注销账号。低频操作收在账号设置，不增加主导航。
+
+关闭空间不可恢复：取消未完成约定、暂停计划，并退回待兑现订单的积分和库存；已兑现及已确认记录保留结果。双方账号继续保留，可先导出共同历史，再各自离开；离开时旧积分结算清零，之后无法访问旧空间。注销还会删除本人登录凭据、邮箱与通知，保留匿名化的共同业务记录及账本。
+
+尚未提供图片上传、原生 App、离线操作、真实货币支付、积分充值提现、多人空间或多机高可用。积分仅用于双方约定，不代表现金资产。
+
+## 本地 Docker 体验
+
+需要 Docker Engine / Desktop 与 Compose。先复制配置，并把 `POSTGRES_PASSWORD` 改为随机字母数字密码：
 
 ```sh
 cp .env.example .env
-```
-
-Windows PowerShell 使用 `Copy-Item .env.example .env`。编辑 `.env` 中的 `POSTGRES_PASSWORD`，替换为足够长的随机字母数字密码。`DATABASE_URL` 是本地开发配置，Compose 会自动用 `db` 服务地址覆盖。
-
-```sh
 docker compose up -d --build
-docker compose ps
 ```
 
-浏览器打开 **http://localhost:33442**。数据库就绪后先执行迁移，再启动应用和后台任务。数据库没有宿主端口映射。生产数据库初始为空，两人分别注册，一人创建空间，另一人输入邀请码加入。
+Windows PowerShell 使用 `Copy-Item .env.example .env`。打开 **http://localhost:33442**。此入口运行 `NODE_ENV=development`，应用端口默认只绑定 `127.0.0.1`，数据库不映射宿主端口。Compose 自动使用容器内 `db` 地址覆盖开发用 `DATABASE_URL`。
 
-默认网页端口只绑定本机。手机在同一 Wi-Fi 下试用时，在 `.env` 设置：
-
-```dotenv
-BIND_ADDRESS=0.0.0.0
-APP_URL=http://你的电脑局域网IP:33442
-COOKIE_SECURE=false
-```
-
-重新启动容器后，电脑和手机都应使用 `APP_URL` 中同一个地址访问，因为写请求会检查来源。Windows 防火墙需允许所用端口的专用网络访问。公网部署在反向代理后启用 HTTPS，设置正确的 `APP_URL=https://你的域名` 和 `COOKIE_SECURE=true`；推荐保留应用端口绑定 `127.0.0.1`，由本机反向代理转发。
-
-手机浏览器可使用“添加到主屏幕”。提供 manifest 和图标；首版不提供离线操作，所有数据修改需要联网。
-
-## 邮件设置
-
-在 `.env` 填写 SMTP 服务商给出的配置。例如 587 端口使用 STARTTLS：
-
-```dotenv
-SMTP_HOST=smtp.example.com
-SMTP_PORT=587
-SMTP_SECURE=false
-SMTP_USER=你的发送邮箱
-SMTP_PASS=邮箱授权码或服务商密码
-SMTP_FROM=两个人 <你的发送邮箱>
-```
-
-465 端口通常设置 `SMTP_SECURE=true`。修改后运行 `docker compose up -d`，然后在网页「我们 → 账号设置」发送验证邮件、打开验证链接，再到「我们 → 邮件提醒」开启通知。两个人各自选择是否接收。
-
-在「我们 → 邮件提醒」展开「邮件外观」可以预览并保存六款模板，双方可选择不同款式。模板会用于发给本人的业务通知和邮箱验证邮件。发布任务后通知对方领取，领取后告诉另一人，提交完成后提醒验收，验收结果通知完成人；兑换邮件包含心愿名称、所用积分和进入兑换记录的按钮。已有邮件中的任务与兑换链接仍可使用，登录后继续定位对应内容。即时及定时事件在业务成功时入队，worker 每 15 秒检查投递。更改模板会用于尚未发送的邮件。
-
-六款样式为草莓心事、奶油来信、薄荷花园、云朵邮局、紫色花笺、晚安星河。也可以打开 [独立邮件预览册](docs/email-preview.html) 比较手机与宽屏效果，预览不会发送邮件。
-
-未配置 SMTP 时仍可使用全部任务、积分、商城和站内通知。业务不会等待邮件发送。后台最多自动尝试 5 次，可在「我们 → 邮件提醒」重试失败邮件。关闭通知会取消尚未发出的业务邮件；已经交给 SMTP 的邮件无法撤回。SMTP 故障窗口可能造成重复邮件，业务积分和订单始终防重。
-
-## 微信登录设置
-
-微信登录通过北辰聚合平台提供，凭据只由后端读取。Compose 部署时在 `.env` 填写：
-
-```dotenv
-WECHAT_LOGIN_ENABLED=true
-BEICHEN_APP_ID=平台应用ID
-BEICHEN_APP_KEY=平台应用密钥
-APP_URL=https://你的实际域名
-COOKIE_SECURE=true
-```
-
-然后在北辰后台启用微信方式并登记网站域名，运行 `docker compose up -d --build` 使配置生效。回调地址前缀是
-`https://你的实际域名/api/auth/wechat/callback/`。平台若要求完整回调白名单，需要允许末尾随机状态路径，具体规则以后台校验结果为准。AppKey 不会返回给浏览器，也不会写入前端资源。
-
-未登录用户可以直接用微信创建账号；已有邮箱账号先用邮箱登录，配对后在「我们 → 账号设置」绑定微信。微信新账号没有邮箱时，可在同一位置补充邮箱并收取验证邮件；配对前也可从配对页的账号入口设置。系统不会按昵称、头像或邮箱自动合并账号，绑定冲突会明确拒绝。
-
-## 日常维护
-
-```sh
-docker compose logs --tail=100 app worker
-docker compose exec app node dist/scripts/check-ledger.js
-docker compose exec worker node dist/scripts/worker-health.js
-```
-
-worker 每 15 秒检查一次。健康检查判断两分钟内是否有心跳；积分对账只查询，不修改数据。`/api/health` 检查数据库连通，登录后 `/api/status` 可查后台心跳。
-
-### 备份
-
-在宿主机创建 `backups` 目录。以下操作兼容 PowerShell 和常见 shell，避免通过 PowerShell 重定向二进制备份：
-
-```sh
-docker compose exec -T db sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc -f /tmp/couple-backup.dump'
-docker compose cp db:/tmp/couple-backup.dump ./backups/couple-backup.dump
-```
-
-给备份文件加上日期，建议每天备份并复制到另一台设备。备份包含私人任务和账号散列，应妥善保存。首版没有内置自动备份调度，需由部署者配置；数据库持久卷不能代替备份。
-
-### 恢复
-
-恢复会以备份覆盖当前数据库内容。先另行备份当前库，再在维护窗口执行：
-
-```sh
-docker compose stop app worker
-docker compose cp ./backups/couple-backup.dump db:/tmp/couple-backup.dump
-docker compose exec -T db sh -c 'pg_restore -U "$POSTGRES_USER" -d "$POSTGRES_DB" --clean --if-exists --no-owner /tmp/couple-backup.dump'
-docker compose run --rm migrate
-docker compose up -d app worker
-```
-
-升级同样先备份，再 `docker compose up -d --build`。不要用 `docker compose down -v` 停止日常服务，这会删除数据库卷。
+局域网手机体验可在 `.env` 设置 `BIND_ADDRESS=0.0.0.0`、`APP_URL=http://电脑局域网IP:33442`、`COOKIE_SECURE=false` 后重启；电脑和手机须使用同一 `APP_URL`，因为写请求校验来源。手机浏览器可添加到主屏幕，业务操作仍需联网。
 
 ## 本地开发
 
-需要 Node.js 22 或更高版本。数据库可选 Docker PostgreSQL，或仓库提供的仅开发使用的 PostgreSQL 17 启动脚本：
+需要 Node.js 22+。仓库提供仅供开发使用的 PostgreSQL 17 启动脚本：
 
 ```sh
 npm ci
@@ -131,56 +61,49 @@ cp .env.example .env
 npm run local:db
 ```
 
-Windows 使用 `Copy-Item` 复制配置。`local:db` 在本机 `127.0.0.1:55432` 启动 PostgreSQL，仅使用固定的本地开发凭据；请保持该终端运行。Windows 为兼容中文项目路径，把运行时和数据放在当前用户 `%LOCALAPPDATA%/TwoOfUsDev`，启动时输出具体路径；其他系统使用 `.local/postgres`。生产部署使用 Compose 的数据库服务。
-
-另开终端：
+保持数据库终端运行，另开终端执行：
 
 ```sh
 npm run migrate
-npm run demo:seed
 npm run build
 npm start
 ```
 
-再开终端启动后台 `npm run dev:worker`。打开 http://localhost:33442。
+再开终端运行 `npm run dev:worker`。默认应用地址为 http://localhost:33442。热更新使用 `npm run dev`，先把 `.env` 的 `APP_URL` 改为 `http://localhost:5173`，随后从 5173 访问；API 代理到 33442。
 
-可选演示脚本只在无用户的开发库中建立空间，通过正常任务审核生成积分，不修改已有用户。演示账号：
+Windows 开发库保存在 `%LOCALAPPDATA%/TwoOfUsDev`，其他系统在 `.local/postgres`，启动时会输出具体路径。开发库使用固定本地凭据，不用于生产。
 
-| 昵称 | 邮箱 | 密码 |
-| --- | --- | --- |
-| 小满 | xiaoman@example.test | DemoCouple2026! |
-| 安安 | anan@example.test | DemoCouple2026! |
+可选 `npm run demo:seed` 仅在无用户的开发库创建演示空间，通过任务验收生成积分，不修改已有账号。演示账号为 `xiaoman@example.test` 和 `anan@example.test`，密码均为 `DemoCouple2026!`；保留测试域名不会向真实用户发信。生产禁止执行演示脚本。
 
-这两个地址是保留测试域名，无真实邮件收件人。生产环境禁止执行演示脚本。
+## 邮件与微信
 
-开发热更新用 `npm run dev`。先把 `.env` 的 `APP_URL` 改为 `http://localhost:5173`，从该地址访问；Vite 会把 API 转发到 33442 端口。
+开发环境在 `.env` 配置 SMTP；生产环境编辑持久化的 `.local/production/production.env` 并重新部署。587 使用 STARTTLS，465 通常设置 `SMTP_SECURE=true`；生产默认 `SMTP_REQUIRE_TLS=true`。账号验证与密码重置邮件不受业务通知开关影响，业务提醒须由已验证邮箱的本人开启。
 
-## 检查与测试
+「我们 → 邮件提醒」可选择草莓心事、奶油来信、薄荷花园、云朵邮局、紫色花笺、晚安星河六款外观；预览不发邮件，也可打开 [独立邮件预览册](docs/email-preview.html)。邮件由 worker 异步发送，最多自动尝试 5 次，失败可重试。SMTP 故障窗口可能产生重复邮件，积分和订单仍由事务与幂等约束防重。
+
+本地未配置 SMTP 且未启用验证门槛时，可体验任务、积分、心愿与站内通知；验证邮箱及密码找回不可用。生产入口要求 SMTP 并检查连接，但配置通过不能代替真实收信验收。
+
+微信接入详见 [北辰微信登录](docs/微信登录接入.md)。微信账号可补充邮箱，但不会因此自动获得密码登录能力，也不会与已有账号合并。
+
+## 验证与目录
 
 ```sh
 npm run typecheck
 npm test
 npm run build
+npm run check:worker
 npm run check:ledger
+bash ops/test-deploy.sh
+bash ops/test-production.sh
 ```
 
-集成测试需要 `local:db` 正在运行。测试使用 `couple_test_` 或 `couple_wechat_` 前缀的独立随机数据库，结束后只删除该测试库；不会清空开发库。使用自己的测试服务器时设置 `TEST_DATABASE_ADMIN`，该连接账户需有创建数据库权限。邮件测试启动本地临时 SMTP 接收器，不向真实邮箱发送。微信测试使用模拟平台响应，单独执行可用 `npm run test:wechat`；真实扫码需完成平台凭据与域名配置，见 [微信登录接入说明](docs/微信登录接入.md)。
+集成测试需要开发 PostgreSQL，或通过 `TEST_DATABASE_ADMIN` 指定有建库权限的测试连接。测试使用独立随机数据库，不清空开发库；SMTP 使用本地接收器，微信使用模拟平台。Docker 验收创建独立项目，验证本地 CA HTTPS、邮箱验证、配对及备份恢复，不代表已在真实域名或真实邮箱上线。
 
-核心测试包括抢单/审核/兑换/退款并发、第三人成员和跨空间保护、幂等、非负余额、计划防重和补发、邮箱验证与失败重试。当前验证证据和限制见 [验收记录](docs/验收记录.md)。
-
-## 文件结构
-
-```text
-docs/                 产品设计、API 契约、验收记录
-web/                  React 页面、样式、图标和 manifest
-server/app.ts         账号、空间、任务、商城与积分 API
-server/schema.sql     幂等初始数据库结构与首版兼容迁移
-server/jobs.ts        定时任务、邮件队列、心跳
-server/worker.ts      后台进程
-scripts/              迁移、本地数据库、演示数据、运行检查
-tests/                PostgreSQL 集成测试与时间边界测试
-Dockerfile            构建和非 root 运行镜像
-compose.yaml          app、worker、migrate、db
-```
-
-列表通常先显示 6 条，点击「再看」逐批展开；邮件定位兑换记录时会展开到目标记录。接口仍最多返回最近 200 条任务、计划、商品、订单和流水，以及最近 100 条通知；历史记录仍保存在数据库中，暂未提供服务端分页。创建约定与心愿时，说明、时间、重复和份数等可选设置按需展开。暂未提供忘记密码、图片上传、解除配对和更换伴侣。日程固定北京时间；完成说明选填，可直接提交完成，仍需另一半验收；支持图标商品。
+| 目录 / 文件 | 用途 |
+| --- | --- |
+| `web/` | 手机优先 React 页面与静态资源 |
+| `server/app.ts`、`account.ts`、`privacy.ts`、`listing.ts` | 业务、账号安全、数据权利与分页 API |
+| `server/schema.sql`、`server/migrations/` | 基线与按校验和登记的增量迁移 |
+| `server/jobs.ts`、`maintenance.ts`、`worker.ts` | 调度、邮件、保留策略与后台进程 |
+| `scripts/`、`ops/` | 本地工具、生产部署、备份恢复与运维验证 |
+| `tests/`、`docs/` | 测试、现役说明与验收证据 |

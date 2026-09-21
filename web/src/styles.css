@@ -5247,3 +5247,122 @@ main {
     padding-right: 18px;
   }
 }
+
+/* Account, privacy and connection recovery stay inside the existing quiet layout. */
+.account-security {
+  margin: 16px 0;
+}
+.account-security .section-heading {
+  padding-left: 0;
+  padding-right: 0;
+}
+.policy-copy {
+  text-align: left;
+  font-size: 14px;
+  line-height: 1.85;
+  color: #756060;
+}
+.policy-copy h3 {
+  font-size: 16px;
+  color: #513f3d;
+  margin: 20px 0 8px;
+}
+.policy-copy p + p {
+  margin-top: 10px;
+}
+.policy-copy a {
+  color: var(--rose);
+  overflow-wrap: anywhere;
+}
+.danger-options > summary {
+  color: #a34556;
+}
+.consent-row {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 13px !important;
+  font-weight: 400 !important;
+  text-align: left;
+}
+.consent-row input[type='checkbox'] {
+  width: 20px;
+  min-width: 20px;
+  height: 20px;
+  min-height: 20px;
+  margin: 3px 0;
+  padding: 0;
+  accent-color: var(--rose);
+}
+.consent-row span {
+  min-width: 0;
+}
+.consent-row .text-link {
+  display: inline;
+  min-height: auto;
+  padding: 0 3px;
+  font-size: inherit;
+  text-decoration: underline;
+}
+.forgot-link {
+  margin: 16px 0 0;
+  min-height: 44px;
+}
+.password-recovery .onboard-card {
+  text-align: left;
+}
+.password-recovery .section-heading {
+  padding-left: 0;
+  padding-right: 0;
+}
+.password-recovery input,
+.onboard-account input,
+.onboard-card input {
+  font-size: 16px;
+  min-height: 46px;
+}
+.password-recovery label,
+.onboard-account label,
+.onboard-card .account-hint {
+  font-size: 13px;
+}
+.password-recovery .button,
+.onboard-account .button {
+  min-height: 44px;
+  font-size: 14px;
+}
+.connection-warning {
+  margin-bottom: 18px;
+  justify-content: space-between;
+}
+.list-loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 160px;
+  gap: 9px;
+  color: var(--muted);
+}
+.list-continue {
+  margin-top: 12px;
+}
+
+.onboard-card > p {
+  font-size: 14px;
+  line-height: 1.75;
+}
+.onboard-card .wechat-email-address {
+  font-size: 14px;
+}
+.onboard-card .wechat-account-status small {
+  font-size: 12px;
+}
+
+.workspace-view.is-loading .empty {
+  display: none;
+}
+
+.account-security > a.button {
+  text-decoration: none;
+}

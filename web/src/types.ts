@@ -17,6 +17,7 @@ export type User = {
   notifyEmail: boolean;
   emailTheme: string;
   wechatBound: boolean;
+  hasPassword?: boolean;
 };
 export type Bootstrap = {
   user: User | null;
@@ -25,12 +26,18 @@ export type Bootstrap = {
     name: string;
     inviteCode: string | null;
     inviteExpiresAt: string | null;
+    archivedAt?: string | null;
   } | null;
   partner: { id: string; name: string } | null;
   balance: number;
   stats: { open: number; claimed: number; review: number; completed: number };
   smtpConfigured: boolean;
   wechatEnabled: boolean;
+  requireVerifiedEmail?: boolean;
+  registrationOpen?: boolean;
+  supportEmail?: string;
+  operatorName?: string;
+  version?: string;
 };
 export type Task = {
   id: string;
@@ -117,15 +124,26 @@ export type Data = {
 };
 
 export async function api<T = unknown>(path: string, method = 'GET', body?: unknown): Promise<T> {
-  const response = await fetch(`/api${path}`, {
-    method,
-    credentials: 'same-origin',
-    headers: body !== undefined ? { 'Content-Type': 'application/json' } : {},
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(payload.error || '暂时没能完成，请稍后再试');
-  return payload as T;
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 20_000);
+  try {
+    const response = await fetch(`/api${path}`, {
+      method,
+      credentials: 'same-origin',
+      headers: body !== undefined ? { 'Content-Type': 'application/json' } : {},
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+      signal: controller.signal,
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.error || '暂时没能完成，请稍后再试');
+    return payload as T;
+  } catch (error) {
+    if (controller.signal.aborted) throw new Error('网络连接超时，请检查网络后重试');
+    if (error instanceof TypeError) throw new Error('网络连接中断，请稍后重试');
+    throw error;
+  } finally {
+    window.clearTimeout(timeout);
+  }
 }
 export const emptyData: Data = {
   tasks: [],
