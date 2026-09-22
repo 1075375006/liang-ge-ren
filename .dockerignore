@@ -3,6 +3,7 @@ dist
 .git
 .env
 .env.*
+production.env
 .local
 backups
 test-results

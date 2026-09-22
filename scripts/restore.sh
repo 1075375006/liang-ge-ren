@@ -19,12 +19,12 @@ prior='尚未生成；未清空当前数据库'
 on_failure() {
   local exit_code=$?
   trap - ERR
-  compose stop caddy app worker backup || true
+  compose stop app worker backup || true
   info "恢复失败，应用保持停止以保护数据。恢复前备份为 ${prior}；排查后重跑恢复。"
   exit "$exit_code"
 }
 trap on_failure ERR
-compose stop caddy app worker backup
+compose stop app worker backup
 prior=$(backup_database before-restore)
 info "恢复前备份：$prior"
 # Rebuild only the application schema so objects added after this backup cannot survive.
@@ -34,5 +34,4 @@ compose run --rm --no-deps migrate
 compose run --rm --no-deps app node dist/scripts/check-ledger.js
 compose up -d --no-deps --pull never --wait --wait-timeout 180 app worker backup
 compose exec -T app node -e "fetch('http://127.0.0.1:33442/api/ready').then(r=>{if(!r.ok) throw new Error('恢复后的应用与后台尚未就绪')}).catch(e=>{console.error(e.message);process.exit(1)})"
-compose up -d --no-deps caddy
 info '数据库恢复、迁移和积分对账完成。'

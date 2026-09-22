@@ -5,78 +5,56 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/ops/common.sh"
 
 if [[ ${1:-} == '--help' ]]; then
   cat <<'HELP'
-首次部署：DOMAIN=app.example.com SUPPORT_EMAIL=help@example.com SMTP_HOST=smtp.example.com SMTP_FROM=hello@example.com bash scripts/deploy.sh
-可选：SMTP_USER、SMTP_PASS、SMTP_PORT、SMTP_SECURE、ACME_EMAIL、OPERATOR_NAME。
-以后部署：bash scripts/deploy.sh（使用持久化配置，不覆盖已有密钥）。
-配置目录：DEPLOY_STATE_DIR，默认项目的 .local/production。
-必须提前把域名解析到当前服务器并放通 80/443；Docker Compose v2+、Git、OpenSSL、curl 可用。
+首次部署：编辑项目根目录 production.env（可由 production.env.example 复制），然后运行 bash scripts/deploy.sh
+也可运行 bash scripts/deploy.sh --init 创建配置模板；支持 DEPLOY_ENV_FILE 指定另一个绝对路径。
+项目只监听 BIND_ADDRESS:APP_PORT，域名、HTTPS 和反向代理由你自己的 Nginx / Traefik / Caddy 管理。
+Docker Compose v2+、Git、OpenSSL、curl 可用。
 HELP
   exit 0
 fi
-[[ $# -eq 0 ]] || die '只支持 --help；通过环境变量提供首次配置'
-for command in docker git openssl curl; do need "$command"; done
-docker info >/dev/null 2>&1 || die 'Docker 服务不可用，请先启动 Docker 或使用 ops/install.sh 安装'
-docker compose version >/dev/null 2>&1 || die '需要 Docker Compose v2 或更新版本'
+if [[ ${1:-} == '--init' ]]; then
+  [[ $# -eq 1 ]] || die '--init 不接受其他参数'
+  mkdir -p "$(dirname "$ENV_FILE")"
+  [[ -e "$ENV_FILE" ]] && die "配置已存在：$ENV_FILE"
+  cp "$ROOT/production.env.example" "$ENV_FILE"
+  chmod 600 "$ENV_FILE"
+  info "已创建生产配置：$ENV_FILE"
+  info '请填写 APP_URL、SUPPORT_EMAIL、SMTP_* 和反向代理相关设置，再运行 bash scripts/deploy.sh。'
+  exit 0
+fi
+[[ $# -eq 0 ]] || die '只支持 --help 或 --init'
 
 validate_config() {
-  local domain=$1 support=$2 smtp=$3 from=$4 password=$5
-  [[ "$domain" =~ ^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,63}$ ]] || die 'DOMAIN 必须是实际公网域名，不带协议、路径或端口'
-  [[ "$support" =~ ^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$ ]] || die '必须配置有效 SUPPORT_EMAIL，作为用户支持与隐私联系地址'
-  [[ -n "$smtp" && -n "$from" ]] || die '公开运营必须提供 SMTP_HOST 和 SMTP_FROM，用于注册验证和找回密码'
+  local app_url support smtp from password
+  app_url=$(config_value APP_URL); support=$(config_value SUPPORT_EMAIL); smtp=$(config_value SMTP_HOST); from=$(config_value SMTP_FROM); password=$(config_value POSTGRES_PASSWORD)
+  [[ "$app_url" =~ ^https://[^/[:space:]]+/?$ ]] || die 'APP_URL 必须填写反向代理后的完整 HTTPS 地址（项目不会绑定它）'
+  [[ "$support" =~ ^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$ ]] || die '必须配置有效 SUPPORT_EMAIL'
+  [[ -n "$smtp" && -n "$from" ]] || die '公开运营必须提供 SMTP_HOST 和 SMTP_FROM'
   [[ "$password" =~ ^[a-zA-Z0-9]{32,}$ ]] || die '生产数据库密码必须至少 32 位随机字母数字'
+  [[ "$(config_value APP_PORT)" =~ ^[0-9]+$ ]] || die 'APP_PORT 必须是数字'
 }
 
 if [[ -s "$ENV_FILE" ]]; then
-  validate_config "$(config_value DOMAIN)" "$(config_value SUPPORT_EMAIL)" "$(config_value SMTP_HOST)" "$(config_value SMTP_FROM)" "$(config_value POSTGRES_PASSWORD)"
+  if grep -q 'your-domain\|your-provider' "$ENV_FILE"; then die "请先编辑配置文件：$ENV_FILE"; fi
+  if [[ -z "$(config_value POSTGRES_PASSWORD)" ]]; then
+    project=$(config_value COMPOSE_PROJECT_NAME); project=${project:-liang-ge-ren-production}
+    docker volume inspect "${project}_postgres_data" >/dev/null 2>&1 && die '已有数据库卷但密码为空，请填写原密码；不会接管数据'
+    set_config POSTGRES_PASSWORD "$(openssl rand -hex 32)"
+  fi
+  validate_config
   info "保留现有配置：${ENV_FILE}（本次 shell 的配置变量不会覆盖已有值）"
 else
-  initial_project=${COMPOSE_PROJECT_NAME:-liang-ge-ren-production}
-  [[ "$initial_project" =~ ^[a-z0-9][a-z0-9_-]*$ ]] || die 'COMPOSE_PROJECT_NAME 只能包含小写字母、数字、下划线和连字符'
-  if docker volume inspect "${initial_project}_postgres_data" >/dev/null 2>&1; then
-    die '检测到已有生产数据库卷但没有生产配置。请找回原 production.env；不会生成新密码或接管已有数据库。'
-  fi
-  generated_password=$(openssl rand -hex 32)
-  validate_config "${DOMAIN:-}" "${SUPPORT_EMAIL:-}" "${SMTP_HOST:-}" "${SMTP_FROM:-}" "$generated_password"
+  mkdir -p "$(dirname "$ENV_FILE")"; cp "$ROOT/production.env.example" "$ENV_FILE"; chmod 600 "$ENV_FILE"
+  die "已创建配置文件：${ENV_FILE}；请填写 APP_URL、SUPPORT_EMAIL、SMTP_* 后重新运行"
 fi
+for command in docker git openssl curl; do need "$command"; done
+docker info >/dev/null 2>&1 || die 'Docker 服务不可用，请先启动 Docker 或使用 ops/install.sh 安装'
+docker compose version >/dev/null 2>&1 || die '需要 Docker Compose v2 或更新版本'
 acquire_lock
 mkdir -p "$STATE_DIR/backups"
 chmod 700 "$STATE_DIR/backups"
-if [[ ! -s "$ENV_FILE" ]]; then
-  temporary="$ENV_FILE.tmp.$$"
-  {
-    printf '# Created by scripts/deploy.sh. Keep this file private. Edit only while deployment is idle.\n'
-    write_value COMPOSE_PROJECT_NAME "${COMPOSE_PROJECT_NAME:-liang-ge-ren-production}"
-    write_value DOMAIN "$DOMAIN"
-    write_value SUPPORT_EMAIL "$SUPPORT_EMAIL"
-    write_value ACME_EMAIL "${ACME_EMAIL:-$SUPPORT_EMAIL}"
-    write_value OPERATOR_NAME "${OPERATOR_NAME:-}"
-    write_value POSTGRES_USER couple
-    write_value POSTGRES_DB couple
-    write_value POSTGRES_PASSWORD "$generated_password"
-    write_value APP_IMAGE liang-ge-ren:pending
-    write_value APP_VERSION pending
-    write_value REQUIRE_VERIFIED_EMAIL true
-    write_value REGISTRATION_OPEN true
-    write_value BACKUP_DIR "$STATE_DIR/backups"
-    write_value BACKUP_UID "$(id -u)"
-    write_value BACKUP_GID "$(id -g)"
-    write_value BACKUP_RETENTION_DAYS 14
-    for key in SMTP_HOST SMTP_FROM SMTP_USER SMTP_PASS; do write_value "$key" "${!key:-}"; done
-    write_value SMTP_PORT "${SMTP_PORT:-587}"
-    write_value SMTP_SECURE "${SMTP_SECURE:-false}"
-    write_value SMTP_REQUIRE_TLS "${SMTP_REQUIRE_TLS:-true}"
-    for key in WECHAT_LOGIN_ENABLED BEICHEN_APP_ID BEICHEN_APP_KEY; do write_value "$key" "${!key:-}"; done
-  } >"$temporary"
-  chmod 600 "$temporary"
-  mv "$temporary" "$ENV_FILE"
-  unset generated_password
-  info "首次生产配置已安全保存：$ENV_FILE"
-fi
+if [[ "$(config_value BACKUP_DIR)" != /* ]]; then set_config BACKUP_DIR "$STATE_DIR/backups"; fi
 chmod 600 "$ENV_FILE"
-# A caller's stale environment must not silently override persisted configuration.
-while IFS='=' read -r key _; do
-  [[ "$key" =~ ^[A-Z][A-Z0-9_]*$ ]] && unset "$key"
-done <"$ENV_FILE"
 compose config --quiet
 
 revision=$(git -C "$ROOT" rev-parse HEAD)
@@ -89,7 +67,6 @@ fi
 candidate="liang-ge-ren:$version-$(date -u +%Y%m%d%H%M%S)-$(openssl rand -hex 4)"
 info "构建版本 ${version}（构建失败不会中断已有应用）"
 docker build --pull --build-arg "VCS_REF=$version" --build-arg "BUILD_DATE=$(date -u +%FT%TZ)" --tag "$candidate" "$ROOT"
-compose pull caddy
 ensure_database
 prior_backup='尚未生成；当前数据库未迁移'
 cp "$ENV_FILE" "$STATE_DIR/previous.env"
@@ -100,7 +77,7 @@ failure() {
   local exit_code=$?
   trap - ERR
   if [[ "$maintenance" == true ]]; then
-    compose stop caddy app worker backup || true
+    compose stop app worker backup || true
     info '升级失败，应用保持停止，数据库卷、旧镜像和升级前配置均保留；没有自动回退数据库。'
   fi
   info "升级前备份：$prior_backup"
@@ -111,7 +88,7 @@ failure() {
 }
 trap failure ERR
 maintenance=true
-compose stop caddy app worker backup
+compose stop app worker backup
 prior_backup=$(backup_database before-deploy)
 set_config APP_IMAGE "$candidate"
 set_config APP_VERSION "$version"
@@ -120,20 +97,11 @@ compose up -d --no-deps --pull never --wait --wait-timeout 180 app worker backup
 compose exec -T app node dist/scripts/check-ledger.js
 compose exec -T app node --input-type=module <"$ROOT/ops/check-smtp.mjs"
 compose exec -T app node -e "fetch('http://127.0.0.1:33442/api/ready').then(async r=>{if(!r.ok) throw new Error(await r.text());console.log('应用与后台就绪')}).catch(e=>{console.error(e.message);process.exit(1)})"
-compose up -d --no-deps caddy
-domain=$(config_value DOMAIN)
-info "等待 https://$domain 的证书和公网健康检查（最多 3 分钟）"
-https_ok=false
-deadline=$((SECONDS + 180))
-while ((SECONDS < deadline)); do
-  if curl --fail --silent --show-error --connect-timeout 3 --max-time 5 "https://$domain/api/ready" >"$STATE_DIR/last-readiness.json" 2>"$STATE_DIR/last-https-error.log" &&
-    grep -Eq '"version"[[:space:]]*:[[:space:]]*"'"$version"'"' "$STATE_DIR/last-readiness.json"; then
-    https_ok=true
-    break
-  fi
-  sleep 5
-done
-[[ "$https_ok" == true ]] || { info 'HTTPS 或目标版本检查未通过，请检查 DNS、80/443 防火墙和 Caddy 日志。'; false; }
+app_port=$(config_value APP_PORT)
+bind_address=$(config_value BIND_ADDRESS)
+info "检查本机应用端口 ${bind_address}:${app_port}（域名和 HTTPS 由你的反向代理负责）"
+curl --fail --silent --show-error --connect-timeout 3 --max-time 10 "http://${bind_address}:${app_port}/api/ready" >"$STATE_DIR/last-readiness.json"
+grep -Eq '"version"[[:space:]]*:[[:space:]]*"'"$version"'"' "$STATE_DIR/last-readiness.json" || die '本机应用版本检查未通过'
 maintenance=false
 cp "$ENV_FILE" "$STATE_DIR/last-success.env"
 {
@@ -141,6 +109,6 @@ cp "$ENV_FILE" "$STATE_DIR/last-success.env"
   docker image inspect --format 'image_id={{.Id}}' "$candidate"
   compose images --format json
 } >>"$STATE_DIR/releases.log"
-info "部署完成：https://$domain"
-info '数据库、后台、积分对账及公网 HTTPS 就绪检查通过；真实邮件投递仍需用运营邮箱完成收信检查。'
+info "部署完成：应用监听 ${bind_address}:${app_port}"
+info '数据库、后台、积分对账和本机就绪检查通过；请确认你的反向代理已转发到该端口。'
 info "每日备份保留 14 天，位置：$(config_value BACKUP_DIR)。请同步到另一台机器。"

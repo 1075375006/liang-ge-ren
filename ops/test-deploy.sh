@@ -14,7 +14,7 @@ case "$*" in
   *' ps -aq db') [[ ${TEST_EXISTING_DB:-false} != true ]] || printf 'fake-existing-db\n';;
   'inspect --format {{.Image}} '*) printf 'sha256:%064d\n' 1;;
   'image inspect --format {{index .RepoDigests 0}} '*) printf 'postgres@sha256:%064d\n' 1;;
-  'volume inspect '*) [[ ${TEST_EXISTING_VOLUME:-false} == true ]] && exit 0; exit 1;;
+  'volume inspect'*) [[ ${TEST_EXISTING_VOLUME:-false} == true ]] && exit 0; exit 1;;
   'build '*) [[ ${TEST_FAIL:-} != build ]] || exit 41;;
   *'exec -T db sh -c pg_dump'*) [[ ${TEST_FAIL:-} != backup ]] || exit 42; printf 'test-archive\n';;
   *'exec -T db pg_restore --list'*) read -r marker; [[ "$marker" == test-archive ]] || exit 43;;
@@ -35,19 +35,32 @@ CURL
 chmod +x "$TEST_DIR/bin/docker" "$TEST_DIR/bin/curl"
 export PATH="$TEST_DIR/bin:$PATH"
 export TEST_COMMAND_LOG="$TEST_DIR/commands.log"
-export DOMAIN=app.example.test SUPPORT_EMAIL=help@example.test SMTP_HOST=mail.example.test SMTP_FROM=hello@example.test
+export APP_URL=https://app.example.test SUPPORT_EMAIL=help@example.test SMTP_HOST=mail.example.test SMTP_FROM=hello@example.test
 export SMTP_PASS='a$b!c\d"quoted'
 export DEPLOY_STATE_DIR="$TEST_DIR/state"
+export DEPLOY_ENV_FILE="$DEPLOY_STATE_DIR/production.env"
+mkdir -p "$DEPLOY_STATE_DIR"
 assert() { "$@" || { echo "FAIL: $*" >&2; exit 1; }; }
 run_deploy() { bash "$ROOT/scripts/deploy.sh" >"$TEST_DIR/output.log" 2>&1; }
 
-export DOMAIN=http://bad.example.test
-if run_deploy; then echo 'FAIL invalid domain accepted' >&2; exit 1; fi
-assert test ! -e "$DEPLOY_STATE_DIR/production.env"
-export DOMAIN=app.example.test
+# --init is a local file operation. It must not inspect Docker or open any public URL.
+: >"$TEST_COMMAND_LOG"
+if ! bash "$ROOT/scripts/deploy.sh" --init >"$TEST_DIR/output.log" 2>&1; then echo 'FAIL --init rejected' >&2; exit 1; fi
+assert test -s "$DEPLOY_ENV_FILE"
+assert test ! -s "$TEST_COMMAND_LOG"
+if grep -Eq 'DOMAIN|ACME|CADDY|HTTP_PORT|HTTPS_PORT' "$DEPLOY_ENV_FILE"; then echo 'FAIL external-proxy config retains removed domain/proxy settings' >&2; exit 1; fi
+# A first ordinary run copies the template and stops before Docker until the operator fills it.
+rm -f "$DEPLOY_ENV_FILE"
+: >"$TEST_COMMAND_LOG"
+if run_deploy; then echo 'FAIL incomplete config accepted' >&2; exit 1; fi
+assert test -s "$DEPLOY_ENV_FILE"
+assert test ! -s "$TEST_COMMAND_LOG"
+# Fill the copied file as an operator would; an empty database password is generated once.
+sed -i.bak -e 's#^APP_URL=.*#APP_URL=https://app.example.test#' -e 's#^SMTP_HOST=.*#SMTP_HOST=mail.example.test#' -e 's#^SMTP_FROM=.*#SMTP_FROM=hello@example.test#' -e 's#^SMTP_USER=.*#SMTP_USER=hello@example.test#' -e 's#^POSTGRES_PASSWORD=.*#POSTGRES_PASSWORD=#' "$DEPLOY_ENV_FILE"
+rm -f "$DEPLOY_ENV_FILE.bak"
 export TEST_EXISTING_VOLUME=true
 if run_deploy; then echo 'FAIL existing volume adopted without configuration' >&2; exit 1; fi
-assert test ! -e "$DEPLOY_STATE_DIR/production.env"
+assert grep -Eq '已有数据库卷|已有生产数据库卷|existing.*database|password' "$TEST_DIR/output.log"
 unset TEST_EXISTING_VOLUME
 export TEST_FAIL=build
 if run_deploy; then echo 'FAIL build failure ignored' >&2; exit 1; fi
@@ -61,12 +74,12 @@ if [[ $(uname -s) == Linux ]]; then mode=$(stat -c %a "$DEPLOY_STATE_DIR/product
 export TEST_FAIL=migrate
 : >"$TEST_COMMAND_LOG"
 # Poisoned shell exports cannot change the deployment's persisted credentials.
-export POSTGRES_PASSWORD=unsafe DOMAIN=other.example.test
+export POSTGRES_PASSWORD=unsafe APP_URL=https://other.example.test
 if run_deploy; then echo 'FAIL migration failure ignored' >&2; exit 1; fi
 assert test -s "$DEPLOY_STATE_DIR/previous.env"
 assert test ! -d "$DEPLOY_STATE_DIR/operation.lock"
 assert test "$old_password" = "$(sed -n '/^POSTGRES_PASSWORD=/p' "$DEPLOY_STATE_DIR/production.env")"
-assert grep -Eq 'stop caddy app worker backup' "$TEST_COMMAND_LOG"
+assert grep -Eq 'stop app worker backup' "$TEST_COMMAND_LOG"
 assert grep -Eq '升级失败' "$TEST_DIR/output.log"
 assert test "$(find "$DEPLOY_STATE_DIR/backups" -name 'before-deploy-*.dump' | wc -l | tr -d ' ')" = 1
 
@@ -79,8 +92,8 @@ assert grep -Eq 'up -d --no-recreate --pull never --wait --wait-timeout 120 db' 
 assert grep -Eq '^POSTGRES_IMAGE="postgres@sha256:' "$DEPLOY_STATE_DIR/production.env"
 assert test -s "$DEPLOY_STATE_DIR/last-success.env"
 assert test -s "$DEPLOY_STATE_DIR/releases.log"
-assert grep -Eq 'app.example.test' "$TEST_DIR/output.log"
-if grep -Eq 'other.example.test|unsafe' "$TEST_DIR/output.log"; then echo 'FAIL shell overrides persistent config' >&2; exit 1; fi
+assert grep -Eq 'app.example.test' "$DEPLOY_ENV_FILE"
+if grep -Eq 'other.example.test|unsafe' "$DEPLOY_ENV_FILE"; then echo 'FAIL shell overrides persistent config' >&2; exit 1; fi
 # Test config values are data, never shell code.
 printf "EVIL='\$(touch %s)'\n" "$TEST_DIR/should-not-exist" >>"$DEPLOY_STATE_DIR/production.env"
 bash -c 'source "$1/ops/common.sh"; require_state; config_value EVIL >/dev/null' _ "$ROOT"
@@ -97,8 +110,8 @@ export TEST_FAIL=restore-ledger
 : >"$TEST_COMMAND_LOG"
 if bash "$ROOT/scripts/restore.sh" "$archive" --confirm-replace-database >"$TEST_DIR/restore.log" 2>&1; then echo 'FAIL restore ledger failure ignored' >&2; exit 1; fi
 assert grep -Eq 'run --rm --no-deps app node dist/scripts/check-ledger.js' "$TEST_COMMAND_LOG"
-assert test "$(grep -c 'stop caddy app worker backup' "$TEST_COMMAND_LOG")" -ge 2
-if grep -Eq 'up -d.*app|up -d.*caddy' "$TEST_COMMAND_LOG"; then echo 'FAIL broken ledger exposed restored services' >&2; exit 1; fi
+assert test "$(grep -c 'stop app worker backup' "$TEST_COMMAND_LOG")" -ge 2
+if grep -Eq 'up -d.*app|caddy|proxy' "$TEST_COMMAND_LOG"; then echo 'FAIL broken ledger exposed restored services' >&2; exit 1; fi
 export TEST_FAIL=readiness
 for operation in restore deploy; do
   : >"$TEST_COMMAND_LOG"
@@ -107,8 +120,8 @@ for operation in restore deploy; do
   else
     if run_deploy; then echo 'FAIL deploy readiness failure ignored' >&2; exit 1; fi
   fi
-  assert test "$(grep -c 'stop caddy app worker backup' "$TEST_COMMAND_LOG")" -ge 2
-  if grep -Eq 'up -d.*caddy' "$TEST_COMMAND_LOG"; then echo 'FAIL readiness failure exposed proxy' >&2; exit 1; fi
+  assert test "$(grep -c 'stop app worker backup' "$TEST_COMMAND_LOG")" -ge 2
+  if grep -Eq 'caddy|up -d.*proxy' "$TEST_COMMAND_LOG"; then echo 'FAIL readiness failure exposed proxy' >&2; exit 1; fi
 done
 unset TEST_FAIL
 printf 'PASS: deployment validation, safe build failure, secret persistence, migration failure retention, success, literal env parsing, restore guards, ledger/readiness failure isolation\n'

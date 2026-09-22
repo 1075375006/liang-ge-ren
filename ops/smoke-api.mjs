@@ -2,11 +2,13 @@
 import assert from 'node:assert/strict';
 
 const base = 'http://127.0.0.1:33442';
+const publicUrl = process.env.APP_URL;
+assert.equal(publicUrl, 'https://app.example.test');
 assert.equal(process.env.SMTP_PASS, String.raw`smoke\literal$dollar'quote`);
 async function request(path, data, cookie = '', expected = 200) {
   const response = await fetch(base + path, {
     method: data === undefined ? 'GET' : 'POST',
-    headers: { 'Content-Type': 'application/json', Origin: 'https://localhost', Cookie: cookie },
+    headers: { 'Content-Type': 'application/json', Origin: publicUrl, Cookie: cookie },
     ...(data === undefined ? {} : { body: JSON.stringify(data) }),
   });
   const body = await response.json();
@@ -21,7 +23,11 @@ async function waitForToken(email, pattern) {
       if (!item.To?.some((to) => to.Address === email)) continue;
       const message = await fetch(`http://mailpit:8025/api/v1/message/${item.ID}`).then((r) => r.json());
       const match = message.Text?.match(pattern);
-      if (match) return match[1];
+      if (match) {
+        assert.ok(message.Text.includes(publicUrl + '/'), 'Account email must use the configured public URL');
+        assert.ok(!message.Text.includes(base), 'Account email must not expose the internal application port');
+        return match[1];
+      }
     }
     await new Promise((resolve) => setTimeout(resolve, 1000));
   }
@@ -58,4 +64,4 @@ await request('/api/auth/login', { email: accounts[0].email, password: 'SmokeOnl
 const { body: oldSession } = await request('/api/bootstrap', undefined, accounts[0].cookie);
 assert.equal(oldSession.user, null);
 await request('/api/auth/password/reset', { token: resetToken, password: 'SmokeOnly-Replay-2026!' }, '', 400);
-console.log('PASS: production cookies, verified registration, local SMTP delivery, pairing, password reset, revoked session, token replay protection');
+console.log('PASS: secure production cookies, configured public email links, verified registration, local SMTP delivery, pairing, password reset, revoked session, token replay protection');

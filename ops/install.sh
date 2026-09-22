@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Run on the target Linux host. DOMAIN, SUPPORT_EMAIL and SMTP_* are required on first use.
+# Run on the target Linux host. The installer creates production.env; the operator
+# fills APP_URL, SUPPORT_EMAIL and SMTP_* before running deploy.sh again.
 set -Eeuo pipefail
 umask 077
 fail() { echo "错误：$*" >&2; exit 1; }

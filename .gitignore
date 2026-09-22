@@ -3,6 +3,7 @@ dist/
 .env
 .env.*
 !.env.example
+production.env
 .local/
 coverage/
 *.log
