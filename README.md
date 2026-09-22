@@ -8,20 +8,22 @@
 
 项目只负责运行应用、worker、私有 PostgreSQL 和每日备份，不占用服务器的 80/443 端口，也不申请证书。你可以继续使用自己的 Nginx、Caddy、宝塔或云负载均衡反代到应用端口；项目不会绑定域名。`APP_URL` 可以留空，只有希望来源校验和邮件链接使用反代后的公开地址时才填写。
 
-在 Ubuntu / Debian 服务器以 root 执行安装入口。它会安装 Docker、克隆代码并运行初始化；首次只生成配置并提示编辑，不会猜测域名或覆盖已有配置：
+在 Ubuntu / Debian 服务器以 root 执行安装入口。它会安装 Docker、克隆代码、生成默认配置并直接启动服务；不会猜测域名、绑定域名或覆盖已有配置：
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/1075375006/liang-ge-ren/main/ops/install.sh | bash
 ```
 
-编辑安装目录的 `production.env`（默认 `/opt/liang-ge-ren/production.env`），或直接从仓库复制 [production.env.example](production.env.example) 为 `production.env`。只填写监听地址、端口、数据库和反代信任来源；邮箱与微信配置进入 `/admin` 后台。`POSTGRES_PASSWORD` 首次可留空，由脚本生成。随后只需运行：
+安装完成后默认使用 `127.0.0.1:33442`，数据库密码由脚本随机生成并写入权限为 600 的 `production.env`。项目不要求填写域名；如需邮件链接使用公开地址，再编辑安装目录的 `production.env`（默认 `/opt/liang-ge-ren/production.env`）填写 `APP_URL`。邮箱与微信配置进入 `/admin` 后台。
+
+更新代码或修改配置后，在安装目录运行：
 
 ```sh
 cd /opt/liang-ge-ren
 bash scripts/deploy.sh
 ```
 
-也可以先显式初始化：`bash scripts/deploy.sh --init`。配置文件不进 Git、不进 Docker 构建上下文；更新会保留配置和数据。配置文件路径可用 `DEPLOY_ENV_FILE=/绝对路径/production.env` 替换，状态目录可用 `DEPLOY_STATE_DIR=/绝对路径` 替换。完整字段和反代范例见 [部署与运营](docs/部署运营.md)。
+也可以先显式初始化：`bash scripts/deploy.sh --init` 只创建模板，不启动服务。配置文件不进 Git、不进 Docker 构建上下文；更新会保留配置和数据。配置文件路径可用 `DEPLOY_ENV_FILE=/绝对路径/production.env` 替换，状态目录可用 `DEPLOY_STATE_DIR=/绝对路径` 替换。完整字段和反代范例见 [部署与运营](docs/部署运营.md)。
 
 正式开放默认要求同意条款并验证邮箱。管理员在 `/admin` 保存 SMTP 配置后，注册会自动发验证邮件，验证后才能创建或加入空间。微信登录同样从 `/admin` 开启和配置。
 

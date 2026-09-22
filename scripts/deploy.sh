@@ -5,8 +5,8 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/ops/common.sh"
 
 if [[ ${1:-} == '--help' ]]; then
   cat <<'HELP'
-首次部署：编辑项目根目录 production.env（可由 production.env.example 复制），然后运行 bash scripts/deploy.sh
-也可运行 bash scripts/deploy.sh --init 创建配置模板；支持 DEPLOY_ENV_FILE 指定另一个绝对路径。
+首次部署：直接运行 bash scripts/deploy.sh；脚本会生成默认 production.env、随机数据库密码并启动 Docker 服务。
+也可运行 bash scripts/deploy.sh --init 只创建配置模板，不启动服务；支持 DEPLOY_ENV_FILE 指定另一个绝对路径。
 项目只监听 BIND_ADDRESS:APP_PORT，域名、HTTPS 和反向代理由你自己的 Nginx / Traefik / Caddy 管理。
 Docker Compose v2+、Git、OpenSSL、curl 可用。
 HELP
@@ -19,13 +19,12 @@ if [[ ${1:-} == '--init' ]]; then
   cp "$ROOT/production.env.example" "$ENV_FILE"
   chmod 600 "$ENV_FILE"
   info "已创建生产配置：$ENV_FILE"
-  info '请填写监听端口、数据库和反代设置；SMTP/微信进入 /admin 后台，再运行 bash scripts/deploy.sh。'
+  info '默认端口、数据库和反代设置已填好；按需修改 APP_URL/TRUST_PROXY，SMTP/微信进入 /admin 后台，再运行 bash scripts/deploy.sh。'
   exit 0
 fi
 [[ $# -eq 0 ]] || die '只支持 --help 或 --init'
 
 validate_config() {
-  local app_url support smtp from password
   local app_url support password
   app_url=$(config_value APP_URL); support=$(config_value SUPPORT_EMAIL); password=$(config_value POSTGRES_PASSWORD)
   [[ -z "$app_url" || "$app_url" =~ ^https?://[^/[:space:]]+/?$ ]] || die 'APP_URL 地址格式无效'
@@ -34,22 +33,24 @@ validate_config() {
   [[ "$(config_value APP_PORT)" =~ ^[0-9]+$ ]] || die 'APP_PORT 必须是数字'
 }
 
-if [[ -s "$ENV_FILE" ]]; then
-  if grep -q 'your-domain\|your-provider' "$ENV_FILE"; then die "请先编辑配置文件：$ENV_FILE"; fi
-  if [[ -z "$(config_value POSTGRES_PASSWORD)" ]]; then
-    project=$(config_value COMPOSE_PROJECT_NAME); project=${project:-liang-ge-ren-production}
-    docker volume inspect "${project}_postgres_data" >/dev/null 2>&1 && die '已有数据库卷但密码为空，请填写原密码；不会接管数据'
-    set_config POSTGRES_PASSWORD "$(openssl rand -hex 32)"
-  fi
-  validate_config
-  info "保留现有配置：${ENV_FILE}（本次 shell 的配置变量不会覆盖已有值）"
-else
-  mkdir -p "$(dirname "$ENV_FILE")"; cp "$ROOT/production.env.example" "$ENV_FILE"; chmod 600 "$ENV_FILE"
-  die "已创建配置文件：${ENV_FILE}；请填写监听端口和数据库设置后重新运行，SMTP/微信进入 /admin 配置"
-fi
 for command in docker git openssl curl; do need "$command"; done
 docker info >/dev/null 2>&1 || die 'Docker 服务不可用，请先启动 Docker 或使用 ops/install.sh 安装'
 docker compose version >/dev/null 2>&1 || die '需要 Docker Compose v2 或更新版本'
+if [[ -s "$ENV_FILE" ]]; then
+  grep -q 'your-domain\|your-provider' "$ENV_FILE" && die "请先编辑配置文件：$ENV_FILE"
+  info "保留现有配置：${ENV_FILE}（本次 shell 的配置变量不会覆盖已有值）"
+else
+  mkdir -p "$(dirname "$ENV_FILE")"
+  cp "$ROOT/production.env.example" "$ENV_FILE"
+  chmod 600 "$ENV_FILE"
+  info "已创建默认生产配置：${ENV_FILE}（端口 33442；域名、SMTP、微信可在部署后按需配置）"
+fi
+if [[ -z "$(config_value POSTGRES_PASSWORD)" ]]; then
+  project=$(config_value COMPOSE_PROJECT_NAME); project=${project:-liang-ge-ren-production}
+  docker volume inspect "${project}_postgres_data" >/dev/null 2>&1 && die '已有数据库卷但密码为空，请填写原密码；不会接管数据'
+  set_config POSTGRES_PASSWORD "$(openssl rand -hex 32)"
+fi
+validate_config
 acquire_lock
 mkdir -p "$STATE_DIR/backups"
 chmod 700 "$STATE_DIR/backups"

@@ -49,13 +49,15 @@ if ! bash "$ROOT/scripts/deploy.sh" --init >"$TEST_DIR/output.log" 2>&1; then ec
 assert test -s "$DEPLOY_ENV_FILE"
 assert test ! -s "$TEST_COMMAND_LOG"
 if grep -Eq 'DOMAIN|ACME|CADDY|HTTP_PORT|HTTPS_PORT' "$DEPLOY_ENV_FILE"; then echo 'FAIL external-proxy config retains removed domain/proxy settings' >&2; exit 1; fi
-# A first ordinary run copies the template and stops before Docker until the operator fills it.
+# A first ordinary run copies the template, generates a password, and starts the Docker deployment.
 rm -f "$DEPLOY_ENV_FILE"
 : >"$TEST_COMMAND_LOG"
-if run_deploy; then echo 'FAIL incomplete config accepted' >&2; exit 1; fi
+if ! run_deploy; then echo 'FAIL default config did not deploy' >&2; exit 1; fi
 assert test -s "$DEPLOY_ENV_FILE"
-assert test ! -s "$TEST_COMMAND_LOG"
-# Fill the copied file as an operator would; an empty database password is generated once.
+assert grep -Eq '^POSTGRES_PASSWORD="[a-zA-Z0-9]{32,}"$' "$DEPLOY_ENV_FILE"
+assert grep -Eq '^APP_PORT=33442$' "$DEPLOY_ENV_FILE"
+assert grep -Eq '^BIND_ADDRESS=127\.0\.0\.1$' "$DEPLOY_ENV_FILE"
+# Existing volumes still require the operator to preserve the original password.
 sed -i.bak -e 's#^APP_URL=.*#APP_URL=https://app.example.test#' -e 's#^SMTP_HOST=.*#SMTP_HOST=mail.example.test#' -e 's#^SMTP_FROM=.*#SMTP_FROM=hello@example.test#' -e 's#^SMTP_USER=.*#SMTP_USER=hello@example.test#' -e 's#^POSTGRES_PASSWORD=.*#POSTGRES_PASSWORD=#' "$DEPLOY_ENV_FILE"
 rm -f "$DEPLOY_ENV_FILE.bak"
 export TEST_EXISTING_VOLUME=true
@@ -63,6 +65,7 @@ if run_deploy; then echo 'FAIL existing volume adopted without configuration' >&
 assert grep -Eq '已有数据库卷|已有生产数据库卷|existing.*database|password' "$TEST_DIR/output.log"
 unset TEST_EXISTING_VOLUME
 export TEST_FAIL=build
+: >"$TEST_COMMAND_LOG"
 if run_deploy; then echo 'FAIL build failure ignored' >&2; exit 1; fi
 assert test -s "$DEPLOY_STATE_DIR/production.env"
 if grep -Eq ' stop ' "$TEST_COMMAND_LOG"; then echo 'FAIL build failure stopped services' >&2; exit 1; fi
@@ -81,7 +84,7 @@ assert test ! -d "$DEPLOY_STATE_DIR/operation.lock"
 assert test "$old_password" = "$(sed -n '/^POSTGRES_PASSWORD=/p' "$DEPLOY_STATE_DIR/production.env")"
 assert grep -Eq 'stop app worker backup' "$TEST_COMMAND_LOG"
 assert grep -Eq '升级失败' "$TEST_DIR/output.log"
-assert test "$(find "$DEPLOY_STATE_DIR/backups" -name 'before-deploy-*.dump' | wc -l | tr -d ' ')" = 1
+assert test "$(find "$DEPLOY_STATE_DIR/backups" -name 'before-deploy-*.dump' | wc -l | tr -d ' ')" -ge 2
 
 unset TEST_FAIL
 : >"$TEST_COMMAND_LOG"
