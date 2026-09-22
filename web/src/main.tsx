@@ -1,6 +1,7 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';
+import Admin from './Admin';
 import './styles.css';
 
 class AppBoundary extends React.Component<{ children: React.ReactNode }, { failed: boolean }> {
@@ -26,7 +27,7 @@ class AppBoundary extends React.Component<{ children: React.ReactNode }, { faile
 createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <AppBoundary>
-      <App />
+      {location.pathname === '/admin' || location.hash === '#admin' ? <Admin /> : <App />}
     </AppBoundary>
   </React.StrictMode>,
 );

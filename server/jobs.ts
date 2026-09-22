@@ -5,6 +5,7 @@ import { query, transaction } from './db.js';
 import { notify, smtpConfigured } from './notify.js';
 import { renderMail } from './mail-template.js';
 import { runMaintenance } from './maintenance.js';
+import { applyAdminRuntimeSettings } from './admin.js';
 import {
   nextOccurrence,
   recoverableOccurrence,
@@ -318,6 +319,7 @@ export async function runMailBatch(now: Date = new Date()) {
 
 export async function tick(now: Date = new Date()) {
   try {
+    await applyAdminRuntimeSettings();
     const scheduler = await runScheduler(now);
     const mail = await runMailBatch(now);
     const maintenance = await runMaintenance(now).catch(() => {

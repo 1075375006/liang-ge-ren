@@ -26,10 +26,10 @@ fi
 
 validate_config() {
   local app_url support smtp from password
-  app_url=$(config_value APP_URL); support=$(config_value SUPPORT_EMAIL); smtp=$(config_value SMTP_HOST); from=$(config_value SMTP_FROM); password=$(config_value POSTGRES_PASSWORD)
-  [[ "$app_url" =~ ^https://[^/[:space:]]+/?$ ]] || die 'APP_URL 必须填写反向代理后的完整 HTTPS 地址（项目不会绑定它）'
-  [[ "$support" =~ ^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$ ]] || die '必须配置有效 SUPPORT_EMAIL'
-  [[ -n "$smtp" && -n "$from" ]] || die '公开运营必须提供 SMTP_HOST 和 SMTP_FROM'
+  local app_url support password
+  app_url=$(config_value APP_URL); support=$(config_value SUPPORT_EMAIL); password=$(config_value POSTGRES_PASSWORD)
+  [[ -z "$app_url" || "$app_url" =~ ^https?://[^/[:space:]]+/?$ ]] || die 'APP_URL 地址格式无效'
+  [[ -z "$support" || "$support" =~ ^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$ ]] || die 'SUPPORT_EMAIL 格式无效'
   [[ "$password" =~ ^[a-zA-Z0-9]{32,}$ ]] || die '生产数据库密码必须至少 32 位随机字母数字'
   [[ "$(config_value APP_PORT)" =~ ^[0-9]+$ ]] || die 'APP_PORT 必须是数字'
 }
@@ -53,6 +53,13 @@ docker compose version >/dev/null 2>&1 || die '需要 Docker Compose v2 或更�
 acquire_lock
 mkdir -p "$STATE_DIR/backups"
 chmod 700 "$STATE_DIR/backups"
+if [[ $(id -u) -eq 0 ]]; then chown 1000:1000 "$STATE_DIR" 2>/dev/null || true; fi
+if [[ ! -s "$STATE_DIR/admin.bootstrap" ]]; then
+  openssl rand -hex 32 >"$STATE_DIR/admin.bootstrap"
+  chmod 600 "$STATE_DIR/admin.bootstrap"
+  info "管理员首次初始化令牌已生成：$STATE_DIR/admin.bootstrap（读取后仅通过 /admin/setup 使用一次）"
+fi
+if [[ $(id -u) -eq 0 ]]; then chown 1000:1000 "$STATE_DIR/admin.bootstrap" 2>/dev/null || true; fi
 if [[ "$(config_value BACKUP_DIR)" != /* ]]; then set_config BACKUP_DIR "$STATE_DIR/backups"; fi
 chmod 600 "$ENV_FILE"
 compose config --quiet

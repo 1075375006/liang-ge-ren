@@ -19,7 +19,7 @@ x-app: &app
   environment: &environment
     NODE_ENV: production
     DATABASE_URL: postgresql://${POSTGRES_USER:-couple}:${POSTGRES_PASSWORD:?Missing database password}@db:5432/${POSTGRES_DB:-couple}
-    APP_URL: ${APP_URL:?Set APP_URL to the URL served by your reverse proxy}
+    APP_URL: ${APP_URL:-}
     PORT: 33442
     COOKIE_SECURE: ${COOKIE_SECURE:-true}
     TRUST_PROXY: ${TRUST_PROXY:-loopback,linklocal,uniquelocal}
@@ -27,9 +27,11 @@ x-app: &app
     LOG_LEVEL: ${LOG_LEVEL:-info}
     REGISTRATION_OPEN: ${REGISTRATION_OPEN:-true}
     REQUIRE_VERIFIED_EMAIL: ${REQUIRE_VERIFIED_EMAIL:-true}
-    SUPPORT_EMAIL: ${SUPPORT_EMAIL:?Set SUPPORT_EMAIL}
+    SUPPORT_EMAIL: ${SUPPORT_EMAIL:-}
     OPERATOR_NAME: ${OPERATOR_NAME:-}
     APP_VERSION: ${APP_VERSION:-unknown}
+    ADMIN_SECRET_FILE: /app/.local/production/admin.secret
+    ADMIN_BOOTSTRAP_FILE: /app/.local/production/admin.bootstrap
     WECHAT_LOGIN_ENABLED: ${WECHAT_LOGIN_ENABLED:-false}
     BEICHEN_APP_ID: ${BEICHEN_APP_ID:-}
     BEICHEN_APP_KEY: ${BEICHEN_APP_KEY:-}
@@ -44,6 +46,8 @@ x-app: &app
   depends_on:
     db:
       condition: service_healthy
+  volumes:
+    - ${DEPLOY_STATE_DIR:-.local/production}:/app/.local/production
 
 services:
   db:
@@ -76,7 +80,13 @@ services:
       - '${BIND_ADDRESS:-127.0.0.1}:${APP_PORT:-33442}:33442'
     networks: [backend]
     healthcheck:
-      test: [CMD, node, -e, "fetch('http://127.0.0.1:33442/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      test:
+        [
+          CMD,
+          node,
+          -e,
+          "fetch('http://127.0.0.1:33442/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
       interval: 10s
       timeout: 5s
       start_period: 20s
@@ -118,7 +128,11 @@ services:
       db:
         condition: service_healthy
     healthcheck:
-      test: [CMD-SHELL, 'test -s /backups/.last-success && test "$$(($$(date +%s) - $$(cat /backups/.last-success)))" -lt 93600']
+      test:
+        [
+          CMD-SHELL,
+          'test -s /backups/.last-success && test "$$(($$(date +%s) - $$(cat /backups/.last-success)))" -lt 93600',
+        ]
       interval: 60s
       timeout: 5s
       start_period: 120s

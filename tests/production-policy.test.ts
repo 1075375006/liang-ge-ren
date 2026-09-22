@@ -409,10 +409,9 @@ test('生产配置拒绝不安全或缺失的必填项，正确配置无需连�
       assert.doesNotThrow(validateProductionConfig);
     });
     for (const [name, values, message] of [
-      ['HTTP地址', { APP_URL: 'http://policy.example.test' }, /HTTPS/],
-      ['非法地址', { APP_URL: 'not-a-url' }, /HTTPS/],
+      ['非法地址', { APP_URL: 'not-a-url' }, /地址格式/],
       ['站点路径', { APP_URL: `${origin}/subpath` }, /无路径/],
-      ['站点凭据', { APP_URL: 'https://name:password@policy.example.test' }, /凭据/],
+      ['站点凭据', { APP_URL: 'https://name:password@policy.example.test' }, /地址/],
       [
         '短数据库密码',
         { DATABASE_URL: 'postgresql://policy:short@database.invalid/couple' },
@@ -428,9 +427,6 @@ test('生产配置拒绝不安全或缺失的必填项，正确配置无需连�
       ],
       ['缺少数据库连接', { DATABASE_URL: undefined }, /DATABASE_URL/],
       ['未启用安全Cookie', { COOKIE_SECURE: 'false' }, /COOKIE_SECURE/],
-      ['缺少SMTP服务器', { SMTP_HOST: '' }, /SMTP_HOST/],
-      ['缺少发件人', { SMTP_FROM: '' }, /SMTP_FROM/],
-      ['缺少支持邮箱', { SUPPORT_EMAIL: '' }, /SUPPORT_EMAIL/],
       ['错误支持邮箱', { SUPPORT_EMAIL: 'not-an-email' }, /SUPPORT_EMAIL/],
     ] as const) {
       await t.test(name, async () => {

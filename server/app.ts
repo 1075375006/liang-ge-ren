@@ -14,6 +14,7 @@ import { nextOccurrence } from './schedule-time.js';
 import { registrationOpen, requireVerifiedEmail } from './config.js';
 import { registerAccountRoutes } from './account.js';
 import { registerPrivacyRoutes } from './privacy.js';
+import { registerAdminRoutes } from './admin.js';
 import { registerListRoutes } from './listing.js';
 import { enqueueVerification } from './verification.js';
 import { createRecordOnce, creationRequestKey } from './creation.js';
@@ -252,9 +253,13 @@ export async function buildApp(options: { wechatFetch?: typeof fetch } = {}) {
       if (origin) {
         let valid = false;
         try {
-          valid =
-            new URL(origin).origin ===
-            new URL(process.env.APP_URL ?? 'http://localhost:33442').origin;
+          const configuredOrigin = process.env.APP_URL ? new URL(process.env.APP_URL).origin : '';
+          const forwardedProto = request.headers['x-forwarded-proto'];
+          const forwardedHost = request.headers['x-forwarded-host'];
+          const proto = typeof forwardedProto === 'string' && forwardedProto ? forwardedProto.split(',')[0].trim() : request.protocol;
+          const host = typeof forwardedHost === 'string' && forwardedHost ? forwardedHost.split(',')[0].trim() : request.headers.host;
+          const requestOrigin = host ? new URL(`${proto}://${host}`).origin : '';
+          valid = new URL(origin).origin === (configuredOrigin || requestOrigin);
         } catch {
           /* invalid origin */
         }
@@ -270,7 +275,7 @@ export async function buildApp(options: { wechatFetch?: typeof fetch } = {}) {
     } = await query<User>(
       `SELECT u.id,u.name,u.email,u.email_verified,u.notify_email,u.email_theme,(u.password_hash IS NOT NULL) AS has_password,
         EXISTS(SELECT 1 FROM auth_identities ai WHERE ai.user_id=u.id AND ai.provider='beichen-wx' AND ai.app_id=$2) AS wechat_bound
-       FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=$1 AND s.expires_at>now() AND u.deleted_at IS NULL`,
+       FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=$1 AND s.expires_at>now() AND u.deleted_at IS NULL AND u.suspended_at IS NULL`,
       [digest(token), process.env.BEICHEN_APP_ID ?? ''],
     );
     request.currentUser = user ?? null;
@@ -374,7 +379,7 @@ export async function buildApp(options: { wechatFetch?: typeof fetch } = {}) {
         } = await client.query<User & { password_hash: string | null }>(
           `SELECT u.*,
         EXISTS(SELECT 1 FROM auth_identities ai WHERE ai.user_id=u.id AND ai.provider='beichen-wx' AND ai.app_id=$2) AS wechat_bound
-        FROM users u WHERE email=$1 AND u.deleted_at IS NULL FOR UPDATE OF u`,
+        FROM users u WHERE email=$1 AND u.deleted_at IS NULL AND u.suspended_at IS NULL FOR UPDATE OF u`,
           [input.email, process.env.BEICHEN_APP_ID ?? ''],
         );
         // Perform the same expensive derivation for unknown users to reduce account probing.
@@ -1448,6 +1453,7 @@ export async function buildApp(options: { wechatFetch?: typeof fetch } = {}) {
   await registerAccountRoutes(app, { fail });
   registerPrivacyRoutes(app, { fail });
   registerListRoutes(app, { spaceContext, loggedIn, camel });
+  await registerAdminRoutes(app);
   const webRoot = resolve(process.cwd(), 'dist/web');
   if (existsSync(resolve(webRoot, 'index.html'))) {
     await app.register(staticFiles, { root: webRoot, prefix: '/' });
