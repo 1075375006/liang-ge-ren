@@ -110,7 +110,11 @@ Task 字段包括 `id,title,description,reward,mode,status,creatorId,assignedTo,
 
 `server/db.ts` 导出 `pool`、`query`、`transaction`、`migrate`。迁移在事务与 PostgreSQL advisory 锁中执行，先执行幂等基线 `server/schema.sql`，再按名称顺序执行 `server/migrations/`，在 `schema_migrations` 保存校验和；已执行的增量迁移不可修改。
 
-`server/app.ts` 的 `buildApp()` 用于 API 与集成测试，`server/index.ts` 在监听前检查生产配置。生产要求 HTTPS 地址、安全 Cookie、强数据库密码和支持邮箱；受控代理后配置 `TRUST_PROXY`，直接暴露 API 时不能盲目信任转发头。启用 Origin/Sec-Fetch-Site 检查、限流、安全响应头和请求大小限制。
+`server/app.ts` 的 `buildApp()` 用于 API 与集成测试，`server/index.ts` 在监听前检查生产配置。生产要求安全 Cookie 和强数据库密码；域名与 HTTPS 由外部反向代理负责，`APP_URL` 可选。受控代理后配置 `TRUST_PROXY`，直接暴露 API 时不能盲目信任转发头。启用 Origin/Sec-Fetch-Site 检查、限流、安全响应头和请求大小限制。
+
+## 管理后台
+
+管理入口为 `/admin`，使用独立管理员会话，不复用普通用户 Cookie。首次部署后读取状态目录中的 `admin.bootstrap`，在页面完成一次管理员初始化。管理员可查看数据库、worker、邮件队列、用户和空间概览，并在后台保存 SMTP 与微信配置。SMTP 密码和微信 AppKey 使用服务端密钥加密后写入 `admin_settings`，接口不会回显密钥。管理员可暂停或恢复普通用户；暂停会撤销该用户的普通会话。
 
 后台由 `server/jobs.ts` 调度任务与邮件，`server/maintenance.ts` 执行保留策略。维护每 24 小时最多成功一次、每类每次最多 5000 条：清理过期满 1 天的会话、过期满 7 天的 OAuth/验证/重置令牌、终态邮件 90 天前的历史；安全邮件在令牌过期满 7 天后移除令牌引用并清除链接正文。待发送或发送中的邮件及其引用令牌保持不变。维护不删除账号、空间、任务、计划、商品、订单、账本或站内通知；事务失败不记录完成时间，供后续重试。
 

@@ -14,7 +14,7 @@
 curl -fsSL https://raw.githubusercontent.com/1075375006/liang-ge-ren/main/ops/install.sh | bash
 ```
 
-编辑安装目录的 `production.env`（默认 `/opt/liang-ge-ren/production.env`），或直接从仓库复制 [production.env.example](production.env.example) 为 `production.env`。填写 `APP_URL`、`SUPPORT_EMAIL`、SMTP 和反代信任来源；`POSTGRES_PASSWORD` 首次可留空，由脚本生成。随后只需运行：
+编辑安装目录的 `production.env`（默认 `/opt/liang-ge-ren/production.env`），或直接从仓库复制 [production.env.example](production.env.example) 为 `production.env`。只填写监听地址、端口、数据库和反代信任来源；邮箱与微信配置进入 `/admin` 后台。`POSTGRES_PASSWORD` 首次可留空，由脚本生成。随后只需运行：
 
 ```sh
 cd /opt/liang-ge-ren
@@ -23,7 +23,7 @@ bash scripts/deploy.sh
 
 也可以先显式初始化：`bash scripts/deploy.sh --init`。配置文件不进 Git、不进 Docker 构建上下文；更新会保留配置和数据。配置文件路径可用 `DEPLOY_ENV_FILE=/绝对路径/production.env` 替换，状态目录可用 `DEPLOY_STATE_DIR=/绝对路径` 替换。完整字段和反代范例见 [部署与运营](docs/部署运营.md)。
 
-正式开放默认要求同意条款并验证邮箱。注册会自动发验证邮件，验证后才能创建或加入空间。真实域名、SMTP 凭据与运营联系方式必须由部署环境提供；真实收信、DNS、服务器所在地适用的备案及运营要求仍需在目标环境落实。微信登录是可选项。
+正式开放默认要求同意条款并验证邮箱。管理员在 `/admin` 保存 SMTP 配置后，注册会自动发验证邮件，验证后才能创建或加入空间。微信登录同样从 `/admin` 开启和配置。
 
 生产维护统一使用：
 
@@ -86,11 +86,11 @@ Windows 开发库保存在 `%LOCALAPPDATA%/TwoOfUsDev`，其他系统在 `.local
 
 ## 邮件与微信
 
-开发环境在 `.env` 配置 SMTP；生产环境编辑根目录 `production.env`（模板见 [production.env.example](production.env.example)）并重新部署。587 使用 STARTTLS，465 通常设置 `SMTP_SECURE=true`；生产默认 `SMTP_REQUIRE_TLS=true`。账号验证与密码重置邮件不受业务通知开关影响，业务提醒须由已验证邮箱的本人开启。
+开发环境可以在 `.env` 配置 SMTP；生产环境在 `/admin` 保存 SMTP 设置，不把邮箱密码写进 `production.env`。587 使用 STARTTLS，465 通常设置 `SMTP_SECURE=true`。账号验证与密码重置邮件不受业务通知开关影响，业务提醒须由已验证邮箱的本人开启。
 
 「我们 → 邮件提醒」可选择草莓心事、奶油来信、薄荷花园、云朵邮局、紫色花笺、晚安星河六款外观；预览不发邮件，也可打开 [独立邮件预览册](docs/email-preview.html)。邮件由 worker 异步发送，最多自动尝试 5 次，失败可重试。SMTP 故障窗口可能产生重复邮件，积分和订单仍由事务与幂等约束防重。
 
-本地未配置 SMTP 且未启用验证门槛时，可体验任务、积分、心愿与站内通知；验证邮箱及密码找回不可用。生产入口要求 SMTP 并检查连接，但配置通过不能代替真实收信验收。
+本地未配置 SMTP 且未启用验证门槛时，可体验任务、积分、心愿与站内通知；验证邮箱及密码找回不可用。生产先在 `/admin` 配置并检查 SMTP，再开放注册。
 
 微信接入详见 [北辰微信登录](docs/微信登录接入.md)。微信账号可补充邮箱，但不会因此自动获得密码登录能力，也不会与已有账号合并。
 

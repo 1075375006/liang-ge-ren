@@ -19,7 +19,7 @@ if [[ ${1:-} == '--init' ]]; then
   cp "$ROOT/production.env.example" "$ENV_FILE"
   chmod 600 "$ENV_FILE"
   info "已创建生产配置：$ENV_FILE"
-  info '请填写 APP_URL、SUPPORT_EMAIL、SMTP_* 和反向代理相关设置，再运行 bash scripts/deploy.sh。'
+  info '请填写监听端口、数据库和反代设置；SMTP/微信进入 /admin 后台，再运行 bash scripts/deploy.sh。'
   exit 0
 fi
 [[ $# -eq 0 ]] || die '只支持 --help 或 --init'
@@ -45,7 +45,7 @@ if [[ -s "$ENV_FILE" ]]; then
   info "保留现有配置：${ENV_FILE}（本次 shell 的配置变量不会覆盖已有值）"
 else
   mkdir -p "$(dirname "$ENV_FILE")"; cp "$ROOT/production.env.example" "$ENV_FILE"; chmod 600 "$ENV_FILE"
-  die "已创建配置文件：${ENV_FILE}；请填写 APP_URL、SUPPORT_EMAIL、SMTP_* 后重新运行"
+  die "已创建配置文件：${ENV_FILE}；请填写监听端口和数据库设置后重新运行，SMTP/微信进入 /admin 配置"
 fi
 for command in docker git openssl curl; do need "$command"; done
 docker info >/dev/null 2>&1 || die 'Docker 服务不可用，请先启动 Docker 或使用 ops/install.sh 安装'
@@ -53,6 +53,7 @@ docker compose version >/dev/null 2>&1 || die '需要 Docker Compose v2 或更�
 acquire_lock
 mkdir -p "$STATE_DIR/backups"
 chmod 700 "$STATE_DIR/backups"
+set_config DEPLOY_STATE_DIR "$STATE_DIR"
 if [[ $(id -u) -eq 0 ]]; then chown 1000:1000 "$STATE_DIR" 2>/dev/null || true; fi
 if [[ ! -s "$STATE_DIR/admin.bootstrap" ]]; then
   openssl rand -hex 32 >"$STATE_DIR/admin.bootstrap"
