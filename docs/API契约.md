@@ -32,6 +32,8 @@
 }
 ```
 
+配对完成后，双方必须分别确认相处契约：`GET /contract` 返回 `{version,text,myAccepted,partnerAccepted,ready}`，`POST /contract/accept {}` 记录当前成员确认时间。`ready=false` 时任务、计划、心愿、兑换、积分等业务接口返回 409，只有双方确认后才开放。
+
 `REGISTRATION_OPEN=false` 暂停新邮箱注册和新微信账号创建，已有账号可登录。`REQUIRE_VERIFIED_EMAIL=true` 时，未验证账号不能创建、加入空间或访问空间业务；微信新用户也需先补充并验证邮箱。
 
 ## 微信登录

@@ -15,6 +15,7 @@ import { registrationOpen, requireVerifiedEmail } from './config.js';
 import { registerAccountRoutes } from './account.js';
 import { registerPrivacyRoutes } from './privacy.js';
 import { registerAdminRoutes } from './admin.js';
+import { RELATIONSHIP_CONTRACT_TEXT, RELATIONSHIP_CONTRACT_VERSION } from './contract.js';
 import { registerListRoutes } from './listing.js';
 import { enqueueVerification } from './verification.js';
 import { createRecordOnce, creationRequestKey } from './creation.js';
@@ -109,6 +110,14 @@ async function spaceContext(request: FastifyRequest, requirePair = true) {
     [space.id, user.id],
   );
   if (requirePair && (!partner || space.archived_at)) fail(409, '邀请伴侣加入后就可以使用这个功能');
+  if (requirePair && partner) {
+    const { rows: members } = await query<{ contract_accepted_at: Date | null }>(
+      'SELECT contract_accepted_at FROM memberships WHERE space_id=$1 ORDER BY slot',
+      [space.id],
+    );
+    if (members.length < 2 || members.some((member) => !member.contract_accepted_at))
+      fail(409, '请先阅读并确认你们的相处契约');
+  }
   return { user, space, partner: partner ?? null };
 }
 const idParam = (request: FastifyRequest) =>
@@ -256,8 +265,14 @@ export async function buildApp(options: { wechatFetch?: typeof fetch } = {}) {
           const configuredOrigin = process.env.APP_URL ? new URL(process.env.APP_URL).origin : '';
           const forwardedProto = request.headers['x-forwarded-proto'];
           const forwardedHost = request.headers['x-forwarded-host'];
-          const proto = typeof forwardedProto === 'string' && forwardedProto ? forwardedProto.split(',')[0].trim() : request.protocol;
-          const host = typeof forwardedHost === 'string' && forwardedHost ? forwardedHost.split(',')[0].trim() : request.headers.host;
+          const proto =
+            typeof forwardedProto === 'string' && forwardedProto
+              ? forwardedProto.split(',')[0].trim()
+              : request.protocol;
+          const host =
+            typeof forwardedHost === 'string' && forwardedHost
+              ? forwardedHost.split(',')[0].trim()
+              : request.headers.host;
           const requestOrigin = host ? new URL(`${proto}://${host}`).origin : '';
           valid = new URL(origin).origin === (configuredOrigin || requestOrigin);
         } catch {
@@ -659,6 +674,13 @@ export async function buildApp(options: { wechatFetch?: typeof fetch } = {}) {
       user: user ? publicUser(user) : null,
       space: null as any,
       partner: null as any,
+      contract: {
+        version: RELATIONSHIP_CONTRACT_VERSION,
+        text: RELATIONSHIP_CONTRACT_TEXT,
+        myAccepted: false,
+        partnerAccepted: false,
+        ready: false,
+      },
       balance: 0,
       stats: { open: 0, claimed: 0, review: 0, completed: 0 },
       smtpConfigured: smtpConfigured(),
@@ -689,6 +711,22 @@ export async function buildApp(options: { wechatFetch?: typeof fetch } = {}) {
       [space.id, user.id],
     );
     result.partner = partner ?? null;
+    const { rows: contractMembers } = await query<{
+      user_id: string;
+      contract_accepted_at: Date | null;
+    }>('SELECT user_id,contract_accepted_at FROM memberships WHERE space_id=$1 ORDER BY slot', [
+      space.id,
+    ]);
+    const myContract = contractMembers.find((member) => member.user_id === user.id);
+    const partnerContract = contractMembers.find((member) => member.user_id !== user.id);
+    result.contract = {
+      version: Number(space.contract_version ?? RELATIONSHIP_CONTRACT_VERSION),
+      text: RELATIONSHIP_CONTRACT_TEXT,
+      myAccepted: Boolean(myContract?.contract_accepted_at),
+      partnerAccepted: Boolean(partnerContract?.contract_accepted_at),
+      ready: Boolean(myContract?.contract_accepted_at && partnerContract?.contract_accepted_at),
+    };
+    if (!result.contract.ready) return result;
     const {
       rows: [stats],
     } = await query(
@@ -702,6 +740,51 @@ export async function buildApp(options: { wechatFetch?: typeof fetch } = {}) {
     );
     result.stats = stats as typeof result.stats;
     return result;
+  });
+  app.get('/api/contract', async (request) => {
+    const user = loggedIn(request);
+    const {
+      rows: [space],
+    } = await query(
+      'SELECT s.* FROM spaces s JOIN memberships m ON m.space_id=s.id WHERE m.user_id=$1',
+      [user.id],
+    );
+    if (!space) fail(409, '请先创建或加入两个人的空间');
+    const { rows: members } = await query<{ user_id: string; contract_accepted_at: Date | null }>(
+      'SELECT user_id,contract_accepted_at FROM memberships WHERE space_id=$1 ORDER BY slot',
+      [space.id],
+    );
+    const mine = members.find((member) => member.user_id === user.id);
+    const other = members.find((member) => member.user_id !== user.id);
+    return {
+      version: Number(space.contract_version ?? RELATIONSHIP_CONTRACT_VERSION),
+      text: RELATIONSHIP_CONTRACT_TEXT,
+      myAccepted: Boolean(mine?.contract_accepted_at),
+      partnerAccepted: Boolean(other?.contract_accepted_at),
+      ready: Boolean(mine?.contract_accepted_at && other?.contract_accepted_at),
+    };
+  });
+  app.post('/api/contract/accept', async (request) => {
+    const user = loggedIn(request);
+    const {
+      rows: [membership],
+    } = await query<{ space_id: string }>('SELECT space_id FROM memberships WHERE user_id=$1', [
+      user.id,
+    ]);
+    if (!membership) fail(409, '请先创建或加入两个人的空间');
+    await transaction(async (client) => {
+      const {
+        rows: [locked],
+      } = await client.query('SELECT space_id FROM memberships WHERE user_id=$1 FOR UPDATE', [
+        user.id,
+      ]);
+      if (!locked) fail(409, '空间状态已变化，请刷新重试');
+      await client.query(
+        'UPDATE memberships SET contract_accepted_at=now() WHERE user_id=$1 AND space_id=$2',
+        [user.id, locked.space_id],
+      );
+    });
+    return { ok: true };
   });
   app.post('/api/spaces', async (request) => {
     const user = loggedIn(request);

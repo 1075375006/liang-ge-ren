@@ -141,6 +141,8 @@ test('账号、邀请和空间权限', async (t) => {
     const code = first.body.space.inviteCode;
     assert.ok(code);
     ok(await api('POST', '/spaces/join', b, { code }));
+    ok(await api('POST', '/contract/accept', a, {}));
+    ok(await api('POST', '/contract/accept', b, {}));
     denied(await api('POST', '/spaces/join', c, { code }));
     denied(await api('POST', '/spaces', a, { name: '又一个空间' }));
     ok(await api('POST', '/spaces', c, { name: '另一个空间' }));
@@ -855,7 +857,7 @@ test('自己的心愿、完整邮件通知与个人模板偏好', async (t) => {
     const task = await newTask('RACE', 7, a);
     ok(await api('POST', `/tasks/${task.id}/claim`, a, {}));
     assert.equal((await api('POST', `/tasks/${task.id}/submit`, b, {})).status, 403);
-    assert.equal((await api('POST', `/tasks/${task.id}/submit`, c, {})).status, 404);
+    assert.equal((await api('POST', `/tasks/${task.id}/submit`, c, {})).status, 409);
     await database.query("UPDATE tasks SET due_at=now()-interval '1 minute' WHERE id=$1", [
       task.id,
     ]);

@@ -229,6 +229,8 @@ test('生产注册必须同意条款，自动发送邮箱验证，验证前不�
     assert.equal((await api('GET', '/bootstrap', b)).body.user.emailVerified, false);
     ok(await api('POST', '/auth/verify', b, { token: second.token }));
     ok(await api('POST', '/spaces/join', b, { code: created.body.space.inviteCode }));
+    ok(await api('POST', '/contract/accept', a, {}));
+    ok(await api('POST', '/contract/accept', b, {}));
     assert.equal((await api('GET', '/bootstrap', a)).body.partner.id, b.id);
     ok(await api('POST', '/tasks', a, { title: '生产门槛通过后可用', reward: 1, mode: 'RACE' }));
     status(await api('POST', '/auth/verify', b, { token: second.token }), 400);

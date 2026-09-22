@@ -44,6 +44,7 @@ const businessReady = (state: Bootstrap) =>
     state.space &&
     state.partner &&
     !state.space.archivedAt &&
+    Boolean(state.contract?.ready) &&
     (!state.requireVerifiedEmail || state.user.emailVerified),
   );
 const identityOf = (state: Bootstrap) =>

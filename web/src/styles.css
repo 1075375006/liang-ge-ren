@@ -6071,3 +6071,41 @@ main {
 .account-security > a.button {
   text-decoration: none;
 }
+.contract-gate .onboard-card {
+  max-width: 620px;
+}
+.contract-text {
+  max-height: 330px;
+  overflow: auto;
+  margin: 22px 0 16px;
+  padding: 18px 19px;
+  border: 1px solid #f0dfe1;
+  border-radius: 18px;
+  background: #fff9f5;
+  text-align: left;
+  white-space: pre-line;
+  color: #6f5a5b;
+  font-size: 13px;
+  line-height: 1.85;
+}
+.contract-text h2 {
+  margin: 0 0 10px;
+  color: #5b4448;
+  font-size: 16px;
+}
+.contract-text p {
+  white-space: pre-line;
+}
+.contract-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin: 15px 0;
+  color: #9e8588;
+  font-size: 12px;
+}
+.contract-status .done {
+  color: #5e8a64;
+  font-weight: 600;
+}

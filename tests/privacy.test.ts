@@ -93,6 +93,8 @@ async function pair(a: Account, b: Account) {
   const created = await api('POST', '/spaces', a, { name: '共享生活' });
   ok(created);
   ok(await api('POST', '/spaces/join', b, { code: created.body.space.inviteCode }));
+  ok(await api('POST', '/contract/accept', a, {}));
+  ok(await api('POST', '/contract/accept', b, {}));
   return created.body.space.id as string;
 }
 async function earn(creator: Account, claimant: Account) {

@@ -114,6 +114,8 @@ async function pair(first: Account, second: Account) {
     (await api('POST', '/spaces/join', second, { code: state.body.space.inviteCode })).status,
     200,
   );
+  assert.equal((await api('POST', '/contract/accept', first, {})).status, 200);
+  assert.equal((await api('POST', '/contract/accept', second, {})).status, 200);
 }
 async function collect(path: string, key: string, account = a, limit = 37) {
   const items: Array<{ id: string; [key: string]: unknown }> = [];

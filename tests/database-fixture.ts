@@ -3,7 +3,7 @@ import type pg from 'pg';
 /** Refuse a non-test name, wait for backend exit, then drop without killing clients. */
 export async function dropTestDatabase(admin: pg.Pool, name: string): Promise<void> {
   if (
-    !/^couple_(test|wechat|privacy|multi|policy|account_test|creation_test|listing_test|maintenance_test|lifecycle_test)_[a-f0-9]{32}$/.test(
+    !/^couple_(test|wechat|privacy|multi|policy|account_test|creation_test|listing_test|maintenance_test|lifecycle_test|contract_test)_[a-f0-9]{32}$/.test(
       name,
     )
   )

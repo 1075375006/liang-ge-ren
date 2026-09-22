@@ -255,6 +255,8 @@ test('20 组情侣独立注册、邮箱验证、配对和完整业务并发验�
     await Promise.all(
       pairs.map(async (pair) => {
         ok(await api('POST', '/spaces/join', pair.b, { code: ` ${pair.code.toLowerCase()} ` }));
+        ok(await api('POST', '/contract/accept', pair.a, {}));
+        ok(await api('POST', '/contract/accept', pair.b, {}));
         const [a, b] = await Promise.all([
           api('GET', '/bootstrap', pair.a),
           api('GET', '/bootstrap', pair.b),

@@ -29,6 +29,13 @@ export type Bootstrap = {
     archivedAt?: string | null;
   } | null;
   partner: { id: string; name: string } | null;
+  contract: {
+    version: number;
+    text: string;
+    myAccepted: boolean;
+    partnerAccepted: boolean;
+    ready: boolean;
+  };
   balance: number;
   stats: { open: number; claimed: number; review: number; completed: number };
   smtpConfigured: boolean;

@@ -552,6 +552,18 @@ export default function App() {
         {toastView}
       </>
     );
+  if (!bootstrap.contract.ready)
+    return (
+      <ContractGate
+        bootstrap={bootstrap}
+        busy={busy}
+        onAccept={async () => {
+          if (await perform('/contract/accept', {}, '已确认契约，等另一半确认后就可以开始啦'))
+            await refresh();
+        }}
+        toast={toastView}
+      />
+    );
 
   const user = bootstrap.user,
     partner = bootstrap.partner;
@@ -1964,6 +1976,60 @@ function Onboarding({
         />
       </div>
       <p className="onboard-foot">好好在一起，从认真对待每一件小事开始。</p>
+    </div>
+  );
+}
+
+function ContractGate({
+  bootstrap,
+  busy,
+  onAccept,
+  toast,
+}: {
+  bootstrap: Bootstrap;
+  busy: boolean;
+  onAccept: () => Promise<void>;
+  toast: React.ReactNode;
+}) {
+  return (
+    <div className="onboard-shell contract-gate">
+      <Brand />
+      <section className="onboard-card">
+        <div className="onboard-art">
+          <Heart size={42} fill="currentColor" />
+          <span>♡</span>
+          <Heart size={42} fill="currentColor" />
+        </div>
+        <span className="eyebrow">A PROMISE FOR TWO</span>
+        <h1>开始之前，先确认你们的契约</h1>
+        <p>这是只属于你们两个人的约定。双方都确认后，任务、积分和心愿小店才会开启。</p>
+        <article className="contract-text">
+          <h2>两个人的相处契约</h2>
+          <p>{bootstrap.contract.text}</p>
+        </article>
+        <div className="contract-status">
+          <span className={bootstrap.contract.myAccepted ? 'done' : ''}>
+            {bootstrap.contract.myAccepted ? '✓ 我已确认' : '○ 等我确认'}
+          </span>
+          <Heart size={16} fill="currentColor" />
+          <span className={bootstrap.contract.partnerAccepted ? 'done' : ''}>
+            {bootstrap.contract.partnerAccepted ? '✓ 另一半已确认' : '○ 等另一半确认'}
+          </span>
+        </div>
+        <Button
+          className="primary wide"
+          busy={busy}
+          disabled={bootstrap.contract.myAccepted}
+          onClick={() => void onAccept()}
+        >
+          {bootstrap.contract.myAccepted ? '已确认，等另一半' : '我已阅读并确认'}
+        </Button>
+        <p className="form-hint">
+          <ShieldCheck size={15} />
+          可以诚实沟通、一起调整，但不要敷衍对方的心意。
+        </p>
+      </section>
+      {toast}
     </div>
   );
 }

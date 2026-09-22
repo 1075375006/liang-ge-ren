@@ -84,6 +84,8 @@ async function pair(first: Account, second: Account) {
     (await api('POST', '/spaces/join', second, { code: state.body.space.inviteCode })).status,
     200,
   );
+  assert.equal((await api('POST', '/contract/accept', first, {})).status, 200);
+  assert.equal((await api('POST', '/contract/accept', second, {})).status, 200);
 }
 const taskBody = (requestKey?: string) => ({
   title: '幂等约定',
