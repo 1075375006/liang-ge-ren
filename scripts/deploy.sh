@@ -109,7 +109,20 @@ compose exec -T app node -e "fetch('http://127.0.0.1:33442/api/ready').then(asyn
 app_port=$(config_value APP_PORT)
 bind_address=$(config_value BIND_ADDRESS)
 info "检查本机应用端口 ${bind_address}:${app_port}（域名和 HTTPS 由你的反向代理负责）"
-curl --fail --silent --show-error --connect-timeout 3 --max-time 10 "http://${bind_address}:${app_port}/api/ready" >"$STATE_DIR/last-readiness.json"
+ready=false
+for attempt in {1..15}; do
+  if curl --fail --silent --show-error --connect-timeout 2 --max-time 5 "http://${bind_address}:${app_port}/api/ready" >"$STATE_DIR/last-readiness.json"; then
+    ready=true
+    break
+  fi
+  sleep 1
+done
+if [[ "$ready" != true ]]; then
+  info '容器内就绪，但宿主机端口仍无法访问；当前 Compose 端口映射如下：'
+  compose port app 33442 || true
+  compose ps app || true
+  die "本机应用端口 ${bind_address}:${app_port} 未就绪，请检查 Docker 端口发布或 BIND_ADDRESS"
+fi
 grep -Eq '"version"[[:space:]]*:[[:space:]]*"'"$version"'"' "$STATE_DIR/last-readiness.json" || die '本机应用版本检查未通过'
 maintenance=false
 cp "$ENV_FILE" "$STATE_DIR/last-success.env"
