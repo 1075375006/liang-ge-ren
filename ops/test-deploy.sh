@@ -56,9 +56,9 @@ rm -f "$DEPLOY_ENV_FILE"
 : >"$TEST_COMMAND_LOG"
 if ! run_deploy; then echo 'FAIL default config did not deploy' >&2; exit 1; fi
 assert test -s "$DEPLOY_ENV_FILE"
-assert grep -Eq '^POSTGRES_PASSWORD="[a-zA-Z0-9]{32,}"$' "$DEPLOY_ENV_FILE"
+assert grep -Eq '^POSTGRES_PASSWORD="?[a-zA-Z0-9]{32,}"?$' "$DEPLOY_ENV_FILE"
 assert grep -Eq '^APP_PORT=33442$' "$DEPLOY_ENV_FILE"
-assert grep -Eq '^BIND_ADDRESS=127\.0\.0\.1$' "$DEPLOY_ENV_FILE"
+assert grep -Eq '^BIND_ADDRESS=0\.0\.0\.0$' "$DEPLOY_ENV_FILE"
 # Existing volumes still require the operator to preserve the original password.
 sed -i.bak -e 's#^APP_URL=.*#APP_URL=https://app.example.test#' -e 's#^SMTP_HOST=.*#SMTP_HOST=mail.example.test#' -e 's#^SMTP_FROM=.*#SMTP_FROM=hello@example.test#' -e 's#^SMTP_USER=.*#SMTP_USER=hello@example.test#' -e 's#^POSTGRES_PASSWORD=.*#POSTGRES_PASSWORD=#' "$DEPLOY_ENV_FILE"
 rm -f "$DEPLOY_ENV_FILE.bak"

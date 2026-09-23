@@ -14,7 +14,7 @@ source "$ROOT/ops/common.sh"
 cat >"$ENV_FILE" <<CONFIG
 COMPOSE_PROJECT_NAME='$smoke_id'
 APP_URL='https://app.example.test'
-BIND_ADDRESS='127.0.0.1'
+BIND_ADDRESS='0.0.0.0'
 APP_PORT='$smoke_port'
 SUPPORT_EMAIL='support@example.test'
 POSTGRES_USER='couple'
@@ -102,7 +102,8 @@ for service in worker db; do
 done
 [[ $(smoke_compose exec -T app id -u) != 0 ]] || die '应用没有以非 root 运行'
 host_endpoint="127.0.0.1:${smoke_port}"
-[[ "$host_endpoint" =~ ^127\.0\.0\.1:[0-9]+$ ]] || die "应用未仅绑定本机端口：$host_endpoint"
+[[ "$host_endpoint" =~ ^127\.0\.0\.1:[0-9]+$ ]] || die "宿主机测试端点无效：$host_endpoint"
+curl --fail --silent --show-error --connect-timeout 3 --max-time 10 "http://${host_endpoint}/api/ready" >/dev/null || die "宿主机端口未发布：$host_endpoint"
 smoke_compose exec -T app node -e "fetch('http://127.0.0.1:33442/api/ready').then(async r=>{if(!r.ok)throw new Error(await r.text())}).catch(e=>{console.error(e);process.exit(1)})"
 printf '\n'
 smoke_compose exec -T app node -e "fetch('http://127.0.0.1:33442/').then(async r=>{if(!r.ok||!(await r.text()).includes('<div id=\"root\"></div>'))process.exit(1)}).catch(()=>process.exit(1))"
@@ -119,4 +120,4 @@ counts=$(smoke_compose exec -T db sh -c 'psql -At -U "$POSTGRES_USER" -d "$POSTG
 [[ "$counts" == '2|1|t' ]] || die "恢复数据不符合预期：$counts"
 smoke_compose exec -T app node dist/scripts/check-ledger.js
 smoke_compose exec -T app node -e "fetch('http://127.0.0.1:33442/api/ready').then(async r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"
-printf '\nPASS: production Docker build, loopback application port, private database and worker, non-root app, idempotent migration, external-proxy configuration, daily backup health, manual backup and verified restore\n'
+printf '\nPASS: production Docker build, published application port, private database and worker, non-root app, idempotent migration, external-proxy configuration, daily backup health, manual backup and verified restore\n'

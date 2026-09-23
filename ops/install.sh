@@ -1,9 +1,16 @@
 #!/usr/bin/env bash
 # Run on the target Linux host. The installer creates production.env with safe
-# defaults, generates a database password, and starts the Docker services.
+# defaults, sets the template database password, and starts the Docker services.
 set -Eeuo pipefail
 umask 077
 fail() { echo "错误：$*" >&2; exit 1; }
+fresh=false
+if [[ ${1:-} == '--fresh' ]]; then
+  [[ $# -eq 1 ]] || fail '--fresh 不接受其他参数'
+  fresh=true
+  shift
+fi
+[[ $# -eq 0 ]] || fail '只支持 --fresh'
 [[ $(uname -s) == Linux ]] || fail '此引导入口仅支持 Linux 服务器；本地请使用 scripts/deploy.sh'
 INSTALL_DIR=${INSTALL_DIR:-/opt/liang-ge-ren}
 REPOSITORY=https://github.com/1075375006/liang-ge-ren.git
@@ -44,4 +51,7 @@ fi
 git -C "$INSTALL_DIR" fetch origin "$REF"
 target=$(git -C "$INSTALL_DIR" rev-parse FETCH_HEAD)
 git -C "$INSTALL_DIR" checkout --detach "$target"
+if [[ "$fresh" == true ]]; then
+  exec bash "$INSTALL_DIR/scripts/deploy.sh" --fresh
+fi
 exec bash "$INSTALL_DIR/scripts/deploy.sh"

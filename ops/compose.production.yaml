@@ -77,8 +77,8 @@ services:
   app:
     <<: *app
     ports:
-      - '${BIND_ADDRESS:-127.0.0.1}:${APP_PORT:-33442}:33442'
-    networks: [backend]
+      - '${APP_PORT:-33442}:33442'
+    networks: [backend, outbound]
     healthcheck:
       test:
         [

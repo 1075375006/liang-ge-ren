@@ -14,7 +14,7 @@
 curl -fsSL https://raw.githubusercontent.com/1075375006/liang-ge-ren/main/ops/install.sh | bash
 ```
 
-安装完成后默认使用 `127.0.0.1:33442`，数据库密码由脚本随机生成并写入权限为 600 的 `production.env`。项目不要求填写域名；如需邮件链接使用公开地址，再编辑安装目录的 `production.env`（默认 `/opt/liang-ge-ren/production.env`）填写 `APP_URL`。邮箱与微信配置进入 `/admin` 后台。
+安装完成后 Docker 会把应用直接发布到服务器的 `33442` 端口，数据库密码已填入模板并写入权限为 600 的 `production.env`；正式环境建议在首次部署前改成自己的随机密码。项目不要求填写域名；如需邮件链接使用公开地址，再编辑安装目录的 `production.env`（默认 `/opt/liang-ge-ren/production.env`）填写 `APP_URL`。邮箱与微信配置进入 `/admin` 后台。
 
 更新代码或修改配置后，在安装目录运行：
 
@@ -24,6 +24,8 @@ bash scripts/deploy.sh
 ```
 
 也可以先显式初始化：`bash scripts/deploy.sh --init` 只创建模板，不启动服务。配置文件不进 Git、不进 Docker 构建上下文；更新会保留配置和数据。配置文件路径可用 `DEPLOY_ENV_FILE=/绝对路径/production.env` 替换，状态目录可用 `DEPLOY_STATE_DIR=/绝对路径` 替换。完整字段和反代范例见 [部署与运营](docs/部署运营.md)。
+
+如果明确要清空旧 Docker 数据卷重新开始，使用 `curl -fsSL https://raw.githubusercontent.com/1075375006/liang-ge-ren/main/ops/install.sh | bash -s -- --fresh`；这个参数会删除当前 Compose 项目及其 PostgreSQL 卷，只适合不需要保留旧数据的重新部署。
 
 正式开放默认要求同意条款并验证邮箱。管理员在 `/admin` 保存 SMTP 配置后，注册会自动发验证邮件，验证后才能创建或加入空间。微信登录同样从 `/admin` 开启和配置。
 
