@@ -12,7 +12,9 @@ set -eu
 printf '%s\n' "$*" >>"$TEST_COMMAND_LOG"
 case "$*" in
   *' ps -aq db') [[ ${TEST_EXISTING_DB:-false} != true ]] || printf 'fake-existing-db\n';;
+  *'ps -aq'*'com.docker.compose.service=db'*) [[ ${TEST_EXISTING_CONTAINER:-false} != true ]] || printf 'fake-db-container\n';;
   'inspect --format {{.Image}} '*) printf 'sha256:%064d\n' 1;;
+  *'fake-db-container'*) printf 'POSTGRES_PASSWORD=recoveredpassword012345678901234567890123456789\n';;
   'image inspect --format {{index .RepoDigests 0}} '*) printf 'postgres@sha256:%064d\n' 1;;
   'volume inspect'*) [[ ${TEST_EXISTING_VOLUME:-false} == true ]] && exit 0; exit 1;;
   'build '*) [[ ${TEST_FAIL:-} != build ]] || exit 41;;
@@ -64,6 +66,15 @@ export TEST_EXISTING_VOLUME=true
 if run_deploy; then echo 'FAIL existing volume adopted without configuration' >&2; exit 1; fi
 assert grep -Eq '已有数据库卷|已有生产数据库卷|existing.*database|password' "$TEST_DIR/output.log"
 unset TEST_EXISTING_VOLUME
+export TEST_EXISTING_VOLUME=true TEST_EXISTING_CONTAINER=true
+: >"$TEST_COMMAND_LOG"
+if ! run_deploy; then echo 'FAIL existing container password was not recovered' >&2; exit 1; fi
+assert grep -Eq '已从同一 Compose 项目的数据库容器恢复数据库密码' "$TEST_DIR/output.log"
+assert grep -Eq '^POSTGRES_PASSWORD="recoveredpassword012345678901234567890123456789"$' "$DEPLOY_ENV_FILE"
+unset TEST_EXISTING_VOLUME TEST_EXISTING_CONTAINER
+# A build failure after recovery must still leave the running services untouched.
+sed -i.bak -e 's#^POSTGRES_PASSWORD=.*#POSTGRES_PASSWORD=#' "$DEPLOY_ENV_FILE"
+rm -f "$DEPLOY_ENV_FILE.bak"
 export TEST_FAIL=build
 : >"$TEST_COMMAND_LOG"
 if run_deploy; then echo 'FAIL build failure ignored' >&2; exit 1; fi

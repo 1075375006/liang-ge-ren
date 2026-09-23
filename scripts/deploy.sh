@@ -47,8 +47,24 @@ else
 fi
 if [[ -z "$(config_value POSTGRES_PASSWORD)" ]]; then
   project=$(config_value COMPOSE_PROJECT_NAME); project=${project:-liang-ge-ren-production}
-  docker volume inspect "${project}_postgres_data" >/dev/null 2>&1 && die '已有数据库卷但密码为空，请填写原密码；不会接管数据'
-  set_config POSTGRES_PASSWORD "$(openssl rand -hex 32)"
+  if docker volume inspect "${project}_postgres_data" >/dev/null 2>&1; then
+    database_container=$(docker ps -aq \
+      --filter "label=com.docker.compose.project=${project}" \
+      --filter 'label=com.docker.compose.service=db' | head -n 1)
+    recovered_password=''
+    if [[ -n "$database_container" ]]; then
+      recovered_password=$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$database_container" |
+        awk -F= '$1 == "POSTGRES_PASSWORD" { print substr($0, index($0, "=") + 1); exit }')
+    fi
+    if [[ "$recovered_password" =~ ^[a-zA-Z0-9]{32,}$ ]]; then
+      set_config POSTGRES_PASSWORD "$recovered_password"
+      info '已从同一 Compose 项目的数据库容器恢复数据库密码；不会覆盖数据库卷'
+    else
+      die '已有数据库卷但密码为空，且找不到同一 Compose 项目数据库容器中的原密码；请恢复原 production.env，不会接管数据'
+    fi
+  else
+    set_config POSTGRES_PASSWORD "$(openssl rand -hex 32)"
+  fi
 fi
 validate_config
 acquire_lock
