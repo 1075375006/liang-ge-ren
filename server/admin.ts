@@ -176,12 +176,16 @@ export async function readAdminSetting(
 
 type AdminActor = { id: string; username: string };
 
-function adminCookieOptions() {
+function adminCookieOptions(request?: FastifyRequest) {
+  const forwarded = request?.headers['x-forwarded-proto'];
   return {
     path: '/api/admin',
     httpOnly: true,
     sameSite: 'strict' as const,
-    secure: process.env.COOKIE_SECURE === 'true',
+    secure:
+      typeof forwarded === 'string' && forwarded
+        ? forwarded.split(',')[0].trim() === 'https'
+        : request?.protocol === 'https' || process.env.COOKIE_SECURE === 'true',
   };
 }
 
@@ -201,7 +205,7 @@ async function issueAdminSession(client: PoolClient, adminId: string) {
 
 function setAdminCookie(reply: FastifyReply, session: { token: string; expires: Date }) {
   reply.setCookie(ADMIN_SESSION_COOKIE, session.token, {
-    ...adminCookieOptions(),
+    ...adminCookieOptions(reply.request),
     expires: session.expires,
   });
 }
@@ -465,7 +469,7 @@ export async function registerAdminRoutes(app: FastifyInstance): Promise<void> {
   app.post('/api/admin/logout', async (request, reply) => {
     const token = request.cookies[ADMIN_SESSION_COOKIE];
     if (token) await query('DELETE FROM admin_sessions WHERE token_hash=$1', [tokenDigest(token)]);
-    reply.clearCookie(ADMIN_SESSION_COOKIE, adminCookieOptions());
+    reply.clearCookie(ADMIN_SESSION_COOKIE, adminCookieOptions(request));
     return { ok: true };
   });
 

@@ -79,6 +79,10 @@ elif [[ -z "$(config_value POSTGRES_PASSWORD)" || ( "$created_env" == true && "$
     set_config POSTGRES_PASSWORD "$(openssl rand -hex 32)"
   fi
 fi
+if [[ -z "$(config_value APP_URL)" && "$(config_value COOKIE_SECURE)" == 'true' ]]; then
+  set_config COOKIE_SECURE false
+  info 'APP_URL 为空，已将 COOKIE_SECURE 调整为 false 以支持直接 HTTP 端口访问；HTTPS 反代会按转发协议自动使用 Secure Cookie'
+fi
 validate_config
 acquire_lock
 mkdir -p "$STATE_DIR/backups"

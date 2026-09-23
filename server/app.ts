@@ -412,7 +412,7 @@ export async function buildApp(options: { wechatFetch?: typeof fetch } = {}) {
   app.post('/api/auth/logout', async (request, reply) => {
     const token = request.cookies[SESSION_COOKIE];
     if (token) await query('DELETE FROM sessions WHERE token_hash=$1', [digest(token)]);
-    reply.clearCookie(SESSION_COOKIE, cookieOptions());
+    reply.clearCookie(SESSION_COOKIE, cookieOptions(request));
     return { ok: true };
   });
 
@@ -453,7 +453,7 @@ export async function buildApp(options: { wechatFetch?: typeof fetch } = {}) {
       try {
         const url = await authorizationUrl(wechatFetch, redirectUri);
         reply.setCookie('couple_wechat_nonce', browserSecret, {
-          ...cookieOptions(),
+          ...cookieOptions(request),
           path: '/api/auth/wechat',
           maxAge: 600,
         });
@@ -602,7 +602,10 @@ export async function buildApp(options: { wechatFetch?: typeof fetch } = {}) {
       if ('reason' in result && result.reason) return failRedirect(result.reason);
       if ('conflict' in result && result.conflict) return failRedirect('identity_conflict');
       setSessionCookie(reply, result.session!);
-      reply.clearCookie('couple_wechat_nonce', { ...cookieOptions(), path: '/api/auth/wechat' });
+      reply.clearCookie('couple_wechat_nonce', {
+        ...cookieOptions(request),
+        path: '/api/auth/wechat',
+      });
       return reply.redirect(`/?wechat=${result.intent === 'bind' ? 'bound' : 'logged_in'}`, 303);
     } catch (error) {
       if ((error as { code?: string }).code === '23505') return failRedirect('identity_conflict');

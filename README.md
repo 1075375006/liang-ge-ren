@@ -14,7 +14,7 @@
 curl -fsSL https://raw.githubusercontent.com/1075375006/liang-ge-ren/main/ops/install.sh | bash
 ```
 
-安装完成后 Docker 会把应用直接发布到服务器的 `33442` 端口，数据库密码已填入模板并写入权限为 600 的 `production.env`；正式环境建议在首次部署前改成自己的随机密码。项目不要求填写域名；如需邮件链接使用公开地址，再编辑安装目录的 `production.env`（默认 `/opt/liang-ge-ren/production.env`）填写 `APP_URL`。邮箱与微信配置进入 `/admin` 后台。
+安装完成后 Docker 会把应用直接发布到服务器的 `33442` 端口，数据库密码已填入模板并写入权限为 600 的 `production.env`；直接用 HTTP 端口访问时默认 Cookie 可用，使用 HTTPS 反代时把 `COOKIE_SECURE` 改为 `true`。正式环境建议在首次部署前改成自己的随机密码。项目不要求填写域名；如需邮件链接使用公开地址，再编辑安装目录的 `production.env`（默认 `/opt/liang-ge-ren/production.env`）填写 `APP_URL`。邮箱与微信配置进入 `/admin` 后台。
 
 更新代码或修改配置后，在安装目录运行：
 
@@ -113,11 +113,11 @@ bash ops/test-production.sh
 
 集成测试需要开发 PostgreSQL，或通过 `TEST_DATABASE_ADMIN` 指定有建库权限的测试连接。测试使用独立随机数据库，不清空开发库；SMTP 使用本地接收器，微信使用模拟平台。Docker 验收创建独立项目，验证本地 CA HTTPS、邮箱验证、配对及备份恢复，不代表已在真实域名或真实邮箱上线。
 
-| 目录 / 文件 | 用途 |
-| --- | --- |
-| `web/` | 手机优先 React 页面与静态资源 |
-| `server/app.ts`、`account.ts`、`privacy.ts`、`listing.ts` | 业务、账号安全、数据权利与分页 API |
-| `server/schema.sql`、`server/migrations/` | 基线与按校验和登记的增量迁移 |
-| `server/jobs.ts`、`maintenance.ts`、`worker.ts` | 调度、邮件、保留策略与后台进程 |
-| `scripts/`、`ops/` | 本地工具、生产部署、备份恢复与运维验证 |
-| `tests/`、`docs/` | 测试、现役说明与验收证据 |
+| 目录 / 文件                                               | 用途                                   |
+| --------------------------------------------------------- | -------------------------------------- |
+| `web/`                                                    | 手机优先 React 页面与静态资源          |
+| `server/app.ts`、`account.ts`、`privacy.ts`、`listing.ts` | 业务、账号安全、数据权利与分页 API     |
+| `server/schema.sql`、`server/migrations/`                 | 基线与按校验和登记的增量迁移           |
+| `server/jobs.ts`、`maintenance.ts`、`worker.ts`           | 调度、邮件、保留策略与后台进程         |
+| `scripts/`、`ops/`                                        | 本地工具、生产部署、备份恢复与运维验证 |
+| `tests/`、`docs/`                                         | 测试、现役说明与验收证据               |

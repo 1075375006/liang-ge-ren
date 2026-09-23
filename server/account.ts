@@ -149,8 +149,11 @@ export function registerAccountRoutes(app: FastifyInstance, { fail }: { fail: Fa
           [user.id],
         );
       });
-      reply.clearCookie(SESSION_COOKIE, cookieOptions());
-      reply.clearCookie('couple_wechat_nonce', { ...cookieOptions(), path: '/api/auth/wechat' });
+      reply.clearCookie(SESSION_COOKIE, cookieOptions(request));
+      reply.clearCookie('couple_wechat_nonce', {
+        ...cookieOptions(request),
+        path: '/api/auth/wechat',
+      });
       return { ok: true, message: '密码已更新，请用新密码登录' };
     },
   );
@@ -196,7 +199,10 @@ export function registerAccountRoutes(app: FastifyInstance, { fail }: { fail: Fa
         return createSession(client, id);
       });
       setSessionCookie(reply, session);
-      reply.clearCookie('couple_wechat_nonce', { ...cookieOptions(), path: '/api/auth/wechat' });
+      reply.clearCookie('couple_wechat_nonce', {
+        ...cookieOptions(request),
+        path: '/api/auth/wechat',
+      });
       return { ok: true, message: '密码已更新，其他设备已退出登录' };
     },
   );

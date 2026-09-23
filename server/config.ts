@@ -19,7 +19,8 @@ export function validateProductionConfig() {
       errors.push('APP_URL 地址格式无效');
     }
   }
-  if (process.env.COOKIE_SECURE !== 'true') errors.push('生产环境需要 COOKIE_SECURE=true');
+  if (process.env.COOKIE_SECURE !== 'true' && /^https:\/\//i.test(process.env.APP_URL || ''))
+    errors.push('HTTPS 公开地址需要 COOKIE_SECURE=true');
   try {
     const db = new URL(process.env.DATABASE_URL || '');
     if (

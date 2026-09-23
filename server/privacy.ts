@@ -235,8 +235,11 @@ export function registerPrivacyRoutes(app: FastifyInstance, { fail }: { fail: Fa
         );
         return { ok: true, spaceArchived: Boolean(space) };
       });
-      reply.clearCookie(SESSION_COOKIE, cookieOptions());
-      reply.clearCookie('couple_wechat_nonce', { ...cookieOptions(), path: '/api/auth/wechat' });
+      reply.clearCookie(SESSION_COOKIE, cookieOptions(request));
+      reply.clearCookie('couple_wechat_nonce', {
+        ...cookieOptions(request),
+        path: '/api/auth/wechat',
+      });
       return result;
     },
   );

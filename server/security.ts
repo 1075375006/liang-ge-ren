@@ -1,5 +1,5 @@
 import { createHash, randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
-import type { FastifyReply } from 'fastify';
+import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { PoolClient } from 'pg';
 
 export const SESSION_COOKIE = 'couple_session';
@@ -21,12 +21,18 @@ export async function verifyPassword(password: string, encoded: string): Promise
   const expected = Buffer.from(hex, 'hex');
   return actual.length === expected.length && timingSafeEqual(actual, expected);
 }
-export function cookieOptions() {
+function requestIsSecure(request?: FastifyRequest | FastifyReply['request']): boolean {
+  const forwarded = request?.headers['x-forwarded-proto'];
+  if (typeof forwarded === 'string' && forwarded) return forwarded.split(',')[0].trim() === 'https';
+  if (request?.protocol === 'https') return true;
+  return process.env.COOKIE_SECURE === 'true';
+}
+export function cookieOptions(request?: FastifyRequest) {
   return {
     path: '/',
     httpOnly: true,
     sameSite: 'lax' as const,
-    secure: process.env.COOKIE_SECURE === 'true',
+    secure: requestIsSecure(request),
   };
 }
 export async function createSession(
@@ -46,5 +52,8 @@ export function setSessionCookie(
   reply: FastifyReply,
   session: { token: string; expires: Date },
 ): void {
-  reply.setCookie(SESSION_COOKIE, session.token, { ...cookieOptions(), expires: session.expires });
+  reply.setCookie(SESSION_COOKIE, session.token, {
+    ...cookieOptions(reply.request),
+    expires: session.expires,
+  });
 }
