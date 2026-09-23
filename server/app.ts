@@ -359,18 +359,26 @@ export async function buildApp(options: { wechatFetch?: typeof fetch } = {}) {
       if (requireVerifiedEmail() && !input.acceptTerms)
         fail(400, '请先阅读并同意使用条款与隐私说明');
       const hash = await hashPassword(input.password);
-      const result = await transaction(async (client) => {
-        const {
-          rows: [user],
-        } = await client.query<User>(
-          `INSERT INTO users (name,email,password_hash,terms_accepted_at) VALUES ($1,$2,$3,$4) RETURNING id,name,email,email_verified,notify_email,email_theme,false AS wechat_bound,true AS has_password`,
-          [input.name, input.email, hash, input.acceptTerms ? new Date() : null],
-        );
-        await client.query('INSERT INTO wallets (user_id) VALUES ($1)', [user.id]);
-        if (smtpConfigured()) await enqueueVerification(client, user);
-        const session = await createSession(client, user.id);
-        return { user, session };
-      });
+      let result: { user: User; session: { token: string; expires: Date } };
+      try {
+        result = await transaction(async (client) => {
+          const {
+            rows: [user],
+          } = await client.query<User>(
+            `INSERT INTO users (name,email,password_hash,terms_accepted_at) VALUES ($1,$2,$3,$4) RETURNING id,name,email,email_verified,notify_email,email_theme,false AS wechat_bound,true AS has_password`,
+            [input.name, input.email, hash, input.acceptTerms ? new Date() : null],
+          );
+          await client.query('INSERT INTO wallets (user_id) VALUES ($1)', [user.id]);
+          if (smtpConfigured()) await enqueueVerification(client, user);
+          const session = await createSession(client, user.id);
+          return { user, session };
+        });
+      } catch (error) {
+        if ((error as { code?: string }).code === '23505')
+          fail(409, '这个邮箱已经注册，请直接登录');
+        request.log.error({ err: error }, 'account registration failed');
+        fail(503, '注册服务暂时不可用，请检查数据库和邮箱配置后重试');
+      }
       setSessionCookie(reply, result.session);
       return { user: publicUser(result.user) };
     },

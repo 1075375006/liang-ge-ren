@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { randomBytes, randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import pg from 'pg';
+import { SMTPServer } from 'smtp-server';
+import type { AddressInfo } from 'node:net';
 import { dropTestDatabase } from './database-fixture.js';
 
 const databaseName = `couple_test_${randomUUID().replaceAll('-', '')}`;
@@ -19,8 +21,31 @@ let userCookie = '';
 let ensureDefaultAdmin: () => Promise<void>;
 let defaultAdminUsername: string;
 let defaultAdminPassword: string;
+let smtp: SMTPServer;
+let smtpMessages = 0;
 
 before(async () => {
+  smtp = new SMTPServer({
+    authOptional: true,
+    disabledCommands: ['STARTTLS'],
+    onAuth(_auth, _session, callback) {
+      callback(null, { user: 'test-user' });
+    },
+    onData(stream, _session, callback) {
+      let body = '';
+      stream.on('data', (chunk) => {
+        body += String(chunk);
+      });
+      stream.on('end', () => {
+        if (body.length > 0) smtpMessages++;
+        callback();
+      });
+    },
+  });
+  await new Promise<void>((resolve, reject) => {
+    smtp.once('error', reject);
+    smtp.listen(0, '127.0.0.1', () => resolve());
+  });
   await adminDb.query(`CREATE DATABASE "${databaseName}"`);
   created = true;
   const url = new URL(adminUrl);
@@ -48,6 +73,7 @@ before(async () => {
 
 after(async () => {
   if (app) await app.close();
+  if (smtp) await new Promise<void>((resolve) => smtp.close(() => resolve()));
   if (database) await database.closePool();
   if (created) await dropTestDatabase(adminDb, databaseName);
   await adminDb.end();
@@ -104,10 +130,10 @@ test('后台首次初始化、独立会话和设置密文', async () => {
     'PATCH',
     '/admin/settings/email',
     {
-      host: 'smtp.example.test',
-      port: 587,
+      host: '127.0.0.1',
+      port: (smtp.server.address() as AddressInfo).port,
       secure: false,
-      requireTls: true,
+      requireTls: false,
       user: 'mailer@example.test',
       pass: 'secret-mail-password',
       from: 'hello@example.test',
@@ -118,9 +144,18 @@ test('后台首次初始化、独立会话和设置密文', async () => {
   assert.equal(email.body.settings.hasPassword, true);
   assert.equal(JSON.stringify(email.body).includes('secret-mail-password'), false);
   const emailView = await api('GET', '/admin/settings/email', undefined, adminCookie);
-  assert.equal(emailView.body.settings.host, 'smtp.example.test');
+  assert.equal(emailView.body.settings.host, '127.0.0.1');
   assert.equal(emailView.body.settings.hasPassword, true);
   assert.equal(JSON.stringify(emailView.body).includes('secret-mail-password'), false);
+  const testMail = await api(
+    'POST',
+    '/admin/settings/email/test',
+    { to: 'recipient@example.test' },
+    adminCookie,
+  );
+  assert.equal(testMail.status, 200, JSON.stringify(testMail.body));
+  assert.equal(testMail.body.to, 'recipient@example.test');
+  assert.equal(smtpMessages, 1);
 
   const wechat = await api(
     'PATCH',

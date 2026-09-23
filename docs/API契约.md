@@ -118,6 +118,8 @@ Task 字段包括 `id,title,description,reward,mode,status,creatorId,assignedTo,
 
 管理入口为 `/admin`，使用独立管理员会话，不复用普通用户 Cookie。首次启动会自动创建默认管理员 `admin`，默认密码为 `admin123456`；登录后可通过 `PATCH /admin/account {username?,currentPassword,password?}` 修改账号或密码，建议立即修改默认密码。管理员可查看数据库、worker、邮件队列、用户和空间概览，并在后台保存 SMTP 与微信配置。SMTP 密码和微信 AppKey 使用服务端密钥加密后写入 `admin_settings`，接口不会回显密钥。管理员可暂停或恢复普通用户；暂停会撤销该用户的普通会话。
 
+`POST /admin/settings/email/test {to}` 使用已保存的 SMTP 配置发送一封测试邮件；未配置或连接失败时返回可直接显示的错误，不会修改邮件设置。
+
 后台由 `server/jobs.ts` 调度任务与邮件，`server/maintenance.ts` 执行保留策略。维护每 24 小时最多成功一次、每类每次最多 5000 条：清理过期满 1 天的会话、过期满 7 天的 OAuth/验证/重置令牌、终态邮件 90 天前的历史；安全邮件在令牌过期满 7 天后移除令牌引用并清除链接正文。待发送或发送中的邮件及其引用令牌保持不变。维护不删除账号、空间、任务、计划、商品、订单、账本或站内通知；事务失败不记录完成时间，供后续重试。
 
 `notify(client,{userId,spaceId,title,body,kind?,actionPath?})` 在业务事务内创建站内通知，并按收件人验证状态与偏好入邮件队列；链接必须同源。验证与找回密码邮件不受业务通知开关限制。令牌表保存摘要，但待发安全邮件正文包含一次性链接，需遵守保留策略与备份访问限制。

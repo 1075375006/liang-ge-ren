@@ -418,12 +418,13 @@ export default function Admin() {
   const [status, setStatus] = useState<AdminStatus>({});
   const [snapshot, setSnapshot] = useState<Overview>({});
   const [smtp, setSmtp] = useState<SmtpForm>(emptySmtp);
+  const [testRecipient, setTestRecipient] = useState('');
   const [wechat, setWechat] = useState<WechatForm>(emptyWechat);
   const [account, setAccount] = useState<AccountForm>(emptyAccount);
   const [busy, setBusy] = useState(false);
-  const [sectionBusy, setSectionBusy] = useState<'account' | 'smtp' | 'wechat' | 'queue' | null>(
-    null,
-  );
+  const [sectionBusy, setSectionBusy] = useState<
+    'account' | 'smtp' | 'smtp-test' | 'wechat' | 'queue' | null
+  >(null);
   const [message, setMessage] = useState<{ text: string; error?: boolean } | null>(null);
   const [authError, setAuthError] = useState('');
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
@@ -536,6 +537,24 @@ export default function Admin() {
       await refreshData(true);
     } catch (error) {
       notify(error instanceof Error ? error.message : '保存失败，请稍后重试', true);
+    } finally {
+      setSectionBusy(null);
+    }
+  }
+
+  async function sendTestEmail() {
+    if (!testRecipient.trim()) {
+      notify('请先填写测试收件邮箱', true);
+      return;
+    }
+    setSectionBusy('smtp-test');
+    try {
+      const result = await adminApi<{ to: string }>('/settings/email/test', 'POST', {
+        to: testRecipient.trim(),
+      });
+      notify(`测试邮件已发送到 ${result.to}`);
+    } catch (error) {
+      notify(error instanceof Error ? error.message : '测试邮件发送失败，请稍后重试', true);
     } finally {
       setSectionBusy(null);
     }
@@ -914,6 +933,26 @@ export default function Admin() {
                     重新发送失败邮件
                   </Button>
                 ) : null}
+              </div>
+              <div className="admin-test-mail">
+                <Field label="测试收件邮箱" hint="请先保存上面的 SMTP 设置，再发送测试邮件。">
+                  <input
+                    type="email"
+                    value={testRecipient}
+                    onChange={(event) => setTestRecipient(event.target.value)}
+                    placeholder="your@email.com"
+                    autoComplete="email"
+                  />
+                </Field>
+                <Button
+                  variant="soft"
+                  busy={sectionBusy === 'smtp-test'}
+                  disabled={!testRecipient.trim()}
+                  onClick={() => void sendTestEmail()}
+                >
+                  <Mail size={16} />
+                  发送测试邮件
+                </Button>
               </div>
             </Card>
             <Card

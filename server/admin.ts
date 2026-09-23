@@ -10,6 +10,7 @@ import { dirname, resolve } from 'node:path';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { PoolClient } from 'pg';
 import { z } from 'zod';
+import nodemailer from 'nodemailer';
 import { query, transaction } from './db.js';
 import { hashPassword, verifyPassword } from './security.js';
 
@@ -291,6 +292,9 @@ const wechatSettingsInput = z.object({
   enabled: z.boolean().optional(),
   appId: z.string().trim().max(200).optional(),
   appKey: z.string().max(512).optional(),
+});
+const testEmailInput = z.object({
+  to: z.string().trim().email('请输入正确的测试收件邮箱').max(254),
 });
 
 async function saveSetting(client: PoolClient, key: 'email' | 'wechat', value: object) {
@@ -640,6 +644,43 @@ export async function registerAdminRoutes(app: FastifyInstance): Promise<void> {
     process.env.SMTP_PASS = next.pass;
     process.env.SMTP_FROM = next.from;
     return { settings: publicEmail(next) };
+  });
+
+  app.post('/api/admin/settings/email/test', async (request, reply) => {
+    const admin = await mustAdmin(request, reply);
+    if (!admin) return;
+    const { to } = testEmailInput.parse(request.body);
+    const settings = await readAdminEmailSettings();
+    if (!settings.host || !settings.from)
+      return reply.code(409).send({ error: '请先保存 SMTP 服务器和发件地址' });
+    const transporter = nodemailer.createTransport({
+      host: settings.host,
+      port: settings.port,
+      secure: settings.secure,
+      requireTLS: settings.requireTls,
+      auth: settings.user ? { user: settings.user, pass: settings.pass } : undefined,
+      connectionTimeout: 15_000,
+      greetingTimeout: 15_000,
+      socketTimeout: 20_000,
+    });
+    try {
+      await transporter.verify();
+      await transporter.sendMail({
+        from: settings.from,
+        to,
+        subject: '两个人 · SMTP 测试邮件',
+        text: '这是一封来自“两个人”后台的测试邮件。SMTP 配置已经可以正常发送邮件。',
+      });
+      return { ok: true, to };
+    } catch (error) {
+      const code = (error as { code?: string }).code;
+      request.log.error({ err: error, smtpCode: code }, 'smtp test email failed');
+      return reply.code(502).send({
+        error: `测试邮件发送失败${code ? `（${code}）` : ''}，请检查 SMTP 主机、端口、TLS 和账号密码`,
+      });
+    } finally {
+      transporter.close();
+    }
   });
 
   app.get('/api/admin/settings/wechat', async (request, reply) => {
