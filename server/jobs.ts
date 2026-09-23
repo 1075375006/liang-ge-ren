@@ -157,7 +157,7 @@ function mailError(error: unknown): string {
 
 function messageDomain(): string {
   try {
-    const hostname = new URL(process.env.APP_URL ?? 'http://localhost:33442').hostname;
+    const hostname = new URL(process.env.APP_URL?.trim() || 'http://localhost:33442').hostname;
     return /^[a-z0-9.-]+$/i.test(hostname) ? hostname : 'localhost';
   } catch {
     return 'localhost';

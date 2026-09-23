@@ -122,7 +122,13 @@ async function api(
     method,
     url: `/api${path}`,
     remoteAddress: account?.ip ?? '192.0.2.200',
-    headers: { origin, ...(account ? { cookie: account.cookie } : {}), ...headers },
+    headers: {
+      host: new URL(process.env.APP_URL || origin).host,
+      'x-forwarded-proto': new URL(process.env.APP_URL || origin).protocol.replace(':', ''),
+      origin: process.env.APP_URL || origin,
+      ...(account ? { cookie: account.cookie } : {}),
+      ...headers,
+    },
     ...(payload === undefined ? {} : { payload: payload as Record<string, unknown> }),
   });
   return { status: response.statusCode, body: response.json(), headers: response.headers };

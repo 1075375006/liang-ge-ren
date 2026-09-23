@@ -9,7 +9,7 @@ export async function enqueueVerification(
 ) {
   if (!user.email) return;
   const token = randomBytes(32).toString('hex');
-  const url = new URL(process.env.APP_URL ?? 'http://localhost:33442');
+  const url = new URL(process.env.APP_URL?.trim() || 'http://localhost:33442');
   url.search = '';
   url.hash = '';
   url.searchParams.set('verify', token);

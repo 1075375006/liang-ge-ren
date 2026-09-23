@@ -627,7 +627,7 @@ export async function buildApp(options: { wechatFetch?: typeof fetch } = {}) {
     if (!smtpConfigured()) fail(503, '邮件服务尚未配置，暂时不能验证邮箱');
     const email = z.object({ email: emailField }).parse(request.body).email;
     const token = randomBytes(32).toString('hex');
-    const url = new URL(process.env.APP_URL ?? 'http://localhost:33442');
+    const url = new URL(process.env.APP_URL?.trim() || 'http://localhost:33442');
     url.searchParams.set('verify', token);
     await transaction(async (client) => {
       const activeUser = await client.query(
@@ -958,7 +958,7 @@ export async function buildApp(options: { wechatFetch?: typeof fetch } = {}) {
       if (!user.email) fail(409, '请先补充邮箱');
       if (!smtpConfigured()) fail(409, '邮件服务尚未配置，请联系部署者配置 SMTP');
       const token = randomBytes(32).toString('hex');
-      const url = new URL(process.env.APP_URL ?? 'http://localhost:33442');
+      const url = new URL(process.env.APP_URL?.trim() || 'http://localhost:33442');
       url.searchParams.set('verify', token);
       await transaction(async (client) => {
         const activeUser = await client.query(

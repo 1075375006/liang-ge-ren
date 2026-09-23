@@ -20,7 +20,7 @@ export async function notify(client: PoolClient, data: NotificationInput): Promi
     'INSERT INTO notifications (user_id,space_id,title,body,kind) VALUES ($1,$2,$3,$4,$5) RETURNING id',
     [data.userId, data.spaceId, data.title, data.body, data.kind ?? 'GENERAL'],
   );
-  const base = new URL(process.env.APP_URL ?? 'http://localhost:33442');
+  const base = new URL(process.env.APP_URL?.trim() || 'http://localhost:33442');
   const target = new URL(data.actionPath ?? '/', base);
   const link = target.origin === base.origin ? target.toString() : base.toString();
   // Use the same millisecond application clock as the worker's retry/lease checks.

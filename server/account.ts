@@ -60,7 +60,7 @@ export function registerAccountRoutes(app: FastifyInstance, { fail }: { fail: Fa
         // Enforce a recipient limit as well as an IP limit, without revealing account existence.
         if (recent.cooling_down || recent.count >= 3) return;
         const token = randomBytes(32).toString('hex');
-        const link = new URL(process.env.APP_URL ?? 'http://localhost:33442');
+        const link = new URL(process.env.APP_URL?.trim() || 'http://localhost:33442');
         link.search = '';
         link.hash = `reset-password=${token}`;
         await client.query(
