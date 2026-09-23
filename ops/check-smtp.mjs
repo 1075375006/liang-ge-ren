@@ -1,12 +1,18 @@
 // Verify connection, TLS and credentials without sending any message.
 import nodemailer from 'nodemailer';
 
-if (!process.env.SMTP_HOST || !process.env.SMTP_FROM) {
-  console.error('SMTP_HOST 和 SMTP_FROM 未配置');
+const host = process.env.SMTP_HOST?.trim() || '';
+const from = process.env.SMTP_FROM?.trim() || '';
+if (!host && !from) {
+  console.warn('SMTP 尚未配置；跳过连接检查，请部署后从 /admin 保存 SMTP 设置');
+  process.exit(0);
+}
+if (!host || !from) {
+  console.error('SMTP_HOST 和 SMTP_FROM 必须同时配置');
   process.exit(1);
 }
 const transport = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
+  host,
   port: Number(process.env.SMTP_PORT || 587),
   secure: /^(true|1)$/i.test(process.env.SMTP_SECURE || 'false'),
   requireTLS: process.env.SMTP_REQUIRE_TLS !== 'false',
