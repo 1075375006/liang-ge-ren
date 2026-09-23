@@ -90,6 +90,12 @@ type SmtpForm = {
 };
 
 type WechatForm = { enabled: boolean; appId: string; appKey: string };
+type AccountForm = {
+  username: string;
+  currentPassword: string;
+  password: string;
+  confirm: string;
+};
 
 const emptySmtp: SmtpForm = {
   host: '',
@@ -101,6 +107,7 @@ const emptySmtp: SmtpForm = {
   from: '',
 };
 const emptyWechat: WechatForm = { enabled: false, appId: '', appKey: '' };
+const emptyAccount: AccountForm = { username: '', currentPassword: '', password: '', confirm: '' };
 
 async function adminApi<T = unknown>(path: string, method = 'GET', body?: unknown): Promise<T> {
   const controller = new AbortController();
@@ -324,7 +331,7 @@ function Login({
           </Field>
           <Field
             label={setup ? '设置密码' : '管理员密码'}
-            hint={setup ? '至少 12 位，建议使用专用密码。' : undefined}
+            hint={setup ? '至少 8 位，建议使用专用密码。' : undefined}
           >
             <div className="admin-password-input">
               <input
@@ -332,7 +339,7 @@ function Login({
                 onChange={(event) => setPassword(event.target.value)}
                 type={showPassword ? 'text' : 'password'}
                 autoComplete={setup ? 'new-password' : 'current-password'}
-                minLength={setup ? 12 : 1}
+                minLength={setup ? 8 : 1}
                 maxLength={128}
                 required
                 placeholder="输入密码"
@@ -353,7 +360,7 @@ function Login({
                 onChange={(event) => setConfirm(event.target.value)}
                 type={showPassword ? 'text' : 'password'}
                 autoComplete="new-password"
-                minLength={12}
+                minLength={8}
                 maxLength={128}
                 required
                 placeholder="确认管理员密码"
@@ -412,8 +419,11 @@ export default function Admin() {
   const [snapshot, setSnapshot] = useState<Overview>({});
   const [smtp, setSmtp] = useState<SmtpForm>(emptySmtp);
   const [wechat, setWechat] = useState<WechatForm>(emptyWechat);
+  const [account, setAccount] = useState<AccountForm>(emptyAccount);
   const [busy, setBusy] = useState(false);
-  const [sectionBusy, setSectionBusy] = useState<'smtp' | 'wechat' | 'queue' | null>(null);
+  const [sectionBusy, setSectionBusy] = useState<'account' | 'smtp' | 'wechat' | 'queue' | null>(
+    null,
+  );
   const [message, setMessage] = useState<{ text: string; error?: boolean } | null>(null);
   const [authError, setAuthError] = useState('');
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
@@ -496,6 +506,7 @@ export default function Admin() {
       const path = mode === 'setup' ? '/setup' : '/login';
       const data = await adminApi<AdminStatus>(path, 'POST', values);
       setStatus((current) => ({ ...current, ...data, authenticated: true }));
+      setAccount((current) => ({ ...current, username: values.username }));
       setMode('app');
       await refreshData(true);
       notify(mode === 'setup' ? '管理员账号已设置' : '登录成功');
@@ -525,6 +536,33 @@ export default function Admin() {
       await refreshData(true);
     } catch (error) {
       notify(error instanceof Error ? error.message : '保存失败，请稍后重试', true);
+    } finally {
+      setSectionBusy(null);
+    }
+  }
+
+  async function saveAccount() {
+    if (account.password && account.password !== account.confirm) {
+      notify('两次新密码不一致', true);
+      return;
+    }
+    setSectionBusy('account');
+    try {
+      const body: Record<string, unknown> = {
+        username: account.username.trim(),
+        currentPassword: account.currentPassword,
+      };
+      if (account.password) body.password = account.password;
+      const data = await adminApi<{ admin: { username: string } }>('/account', 'PATCH', body);
+      setStatus((current) => ({
+        ...current,
+        username: data.admin.username,
+        adminName: data.admin.username,
+      }));
+      setAccount({ ...emptyAccount, username: data.admin.username });
+      notify('后台账号已更新');
+    } catch (error) {
+      notify(error instanceof Error ? error.message : '账号更新失败，请稍后重试', true);
     } finally {
       setSectionBusy(null);
     }
@@ -730,6 +768,67 @@ export default function Admin() {
             </Card>
           </div>
           <div className="admin-grid admin-grid-main">
+            <Card
+              title="后台账号"
+              icon={KeyRound}
+              className="admin-settings-card"
+              action={<span className="admin-card-caption">登录后可修改</span>}
+            >
+              <p className="admin-card-lead">
+                首次部署默认账号为 <strong>admin</strong>，密码为 <strong>admin123456</strong>
+                。登录后建议立即修改。
+              </p>
+              <Field label="管理员账号">
+                <input
+                  value={account.username}
+                  onChange={(event) => setAccount({ ...account, username: event.target.value })}
+                  autoComplete="username"
+                  minLength={3}
+                  maxLength={64}
+                />
+              </Field>
+              <Field label="当前密码">
+                <input
+                  type="password"
+                  value={account.currentPassword}
+                  onChange={(event) =>
+                    setAccount({ ...account, currentPassword: event.target.value })
+                  }
+                  autoComplete="current-password"
+                  minLength={8}
+                  required
+                />
+              </Field>
+              <Field label="新密码" hint="至少 8 位；留空表示只修改账号。">
+                <input
+                  type="password"
+                  value={account.password}
+                  onChange={(event) => setAccount({ ...account, password: event.target.value })}
+                  autoComplete="new-password"
+                  minLength={8}
+                />
+              </Field>
+              <Field label="确认新密码">
+                <input
+                  type="password"
+                  value={account.confirm}
+                  onChange={(event) => setAccount({ ...account, confirm: event.target.value })}
+                  autoComplete="new-password"
+                  minLength={8}
+                />
+              </Field>
+              <div className="admin-form-actions">
+                <Button
+                  variant="primary"
+                  busy={sectionBusy === 'account'}
+                  disabled={!account.currentPassword || !account.username.trim()}
+                  onClick={() => void saveAccount()}
+                >
+                  <Save size={16} />
+                  保存账号设置
+                </Button>
+              </div>
+            </Card>
             <Card
               title="邮件设置"
               icon={Settings}

@@ -27,7 +27,7 @@ bash scripts/deploy.sh
 
 如果明确要清空旧 Docker 数据卷重新开始，使用 `curl -fsSL https://raw.githubusercontent.com/1075375006/liang-ge-ren/main/ops/install.sh | bash -s -- --fresh`；这个参数会删除当前 Compose 项目及其 PostgreSQL 卷，只适合不需要保留旧数据的重新部署。
 
-正式开放默认要求同意条款并验证邮箱。管理员在 `/admin` 保存 SMTP 配置后，注册会自动发验证邮件，验证后才能创建或加入空间。微信登录同样从 `/admin` 开启和配置。
+正式开放默认要求同意条款并验证邮箱。打开 `/admin` 使用默认账号 `admin`、密码 `admin123456` 登录，进入后台后先修改账号密码，再保存 SMTP 配置；注册会自动发验证邮件，验证后才能创建或加入空间。微信登录同样从 `/admin` 开启和配置。
 
 生产维护统一使用：
 

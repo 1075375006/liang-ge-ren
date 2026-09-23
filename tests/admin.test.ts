@@ -16,6 +16,9 @@ let created = false;
 const password = 'AdminPrivate!2026';
 const userPassword = 'UserPrivate!2026';
 let userCookie = '';
+let ensureDefaultAdmin: () => Promise<void>;
+let defaultAdminUsername: string;
+let defaultAdminPassword: string;
 
 before(async () => {
   await adminDb.query(`CREATE DATABASE "${databaseName}"`);
@@ -33,6 +36,11 @@ before(async () => {
   process.env.BEICHEN_APP_ID = '';
   process.env.BEICHEN_APP_KEY = '';
   database = await import('../server/db.js');
+  ({
+    ensureDefaultAdmin,
+    DEFAULT_ADMIN_USERNAME: defaultAdminUsername,
+    DEFAULT_ADMIN_PASSWORD: defaultAdminPassword,
+  } = await import('../server/admin.js'));
   await database.migrate();
   const { buildApp } = await import('../server/app.js');
   app = await buildApp();
@@ -178,4 +186,41 @@ test('后台概览、用户游标和暂停会撤销普通会话', async () => {
     adminCookie,
   );
   assert.equal(restore.status, 200);
+});
+
+test('生产后台自动创建默认账号，登录后可以修改账号密码', async () => {
+  await database.query('DELETE FROM admin_users');
+  await ensureDefaultAdmin();
+  const defaultLogin = await api('POST', '/admin/login', {
+    username: defaultAdminUsername,
+    password: defaultAdminPassword,
+  });
+  assert.equal(defaultLogin.status, 200, JSON.stringify(defaultLogin.body));
+  const defaultCookie = cookieFrom(defaultLogin.headers);
+  const changed = await api(
+    'PATCH',
+    '/admin/account',
+    {
+      username: 'operator',
+      currentPassword: defaultAdminPassword,
+      password: 'OperatorAdmin!2026',
+    },
+    defaultCookie,
+  );
+  assert.equal(changed.status, 200, JSON.stringify(changed.body));
+  assert.equal(changed.body.admin.username, 'operator');
+  assert.equal(
+    (
+      await api('POST', '/admin/login', {
+        username: defaultAdminUsername,
+        password: defaultAdminPassword,
+      })
+    ).status,
+    401,
+  );
+  const changedLogin = await api('POST', '/admin/login', {
+    username: 'operator',
+    password: 'OperatorAdmin!2026',
+  });
+  assert.equal(changedLogin.status, 200);
 });

@@ -19,6 +19,8 @@ import { hashPassword, verifyPassword } from './security.js';
  * grant access to the operations console.
  */
 export const ADMIN_SESSION_COOKIE = 'couple_admin_session';
+export const DEFAULT_ADMIN_USERNAME = 'admin';
+export const DEFAULT_ADMIN_PASSWORD = 'admin123456';
 const ADMIN_SESSION_HOURS = 12;
 const ADMIN_SECRET_FILE =
   process.env.ADMIN_SECRET_FILE || resolve('.local/production/admin.secret');
@@ -268,7 +270,7 @@ const username = z
   .trim()
   .toLowerCase()
   .regex(/^[a-z0-9][a-z0-9._-]{2,63}$/, '管理员用户名需为 3-64 位字母、数字或 ._-');
-const adminPassword = z.string().min(12, '管理员密码至少 12 位').max(128, '管理员密码最多 128 位');
+const adminPassword = z.string().min(8, '管理员密码至少 8 位').max(128, '管理员密码最多 128 位');
 
 const emailSettingsInput = z.object({
   host: z.string().trim().max(255).optional(),
@@ -335,12 +337,26 @@ function cursorDecode(value: string): { createdAt: string; id: string } | null {
   }
 }
 
+export async function ensureDefaultAdmin(): Promise<void> {
+  await transaction(async (client) => {
+    await client.query('SELECT pg_advisory_xact_lock(726031941)');
+    const { rows: existing } = await client.query('SELECT id FROM admin_users LIMIT 1');
+    if (existing.length) return;
+    const passwordHash = await hashPassword(DEFAULT_ADMIN_PASSWORD);
+    await client.query('INSERT INTO admin_users(username,password_hash) VALUES($1,$2)', [
+      DEFAULT_ADMIN_USERNAME,
+      passwordHash,
+    ]);
+  });
+}
+
 export async function registerAdminRoutes(app: FastifyInstance): Promise<void> {
   // Do not make HTTP startup depend on a healthy database connection. The
   // readiness endpoint still reports the database failure, and the worker/API
   // will apply settings again on its next request or tick. This also keeps the
   // public callback error paths available while the database is restarting.
   await applyAdminRuntimeSettings().catch(() => undefined);
+  if (process.env.NODE_ENV !== 'test') await ensureDefaultAdmin().catch(() => undefined);
   app.post(
     '/api/admin/setup',
     { config: { rateLimit: { max: 5, timeWindow: '1 hour' } } },
@@ -374,6 +390,56 @@ export async function registerAdminRoutes(app: FastifyInstance): Promise<void> {
       return reply.code(201).send({ admin: result.created });
     },
   );
+
+  app.patch('/api/admin/account', async (request, reply) => {
+    const admin = await mustAdmin(request, reply);
+    if (!admin) return;
+    const input = z
+      .object({
+        username: username.optional(),
+        currentPassword: adminPassword,
+        password: adminPassword.optional(),
+      })
+      .refine((value) => value.username !== undefined || value.password !== undefined, {
+        message: '请填写新的账号或密码',
+      })
+      .parse(request.body);
+    const {
+      rows: [record],
+    } = await query<{ id: string; username: string; password_hash: string }>(
+      'SELECT id,username,password_hash FROM admin_users WHERE id=$1',
+      [admin.id],
+    );
+    if (!record || !(await verifyPassword(input.currentPassword, record.password_hash)))
+      return reply.code(401).send({ error: '当前管理员密码不正确' });
+    const nextUsername = input.username ?? record.username;
+    const nextPasswordHash = input.password
+      ? await hashPassword(input.password)
+      : record.password_hash;
+    try {
+      const result = await transaction(async (client) => {
+        const {
+          rows: [updated],
+        } = await client.query<{ id: string; username: string }>(
+          `UPDATE admin_users SET username=$2,password_hash=$3,updated_at=now()
+           WHERE id=$1 RETURNING id,username`,
+          [record.id, nextUsername, nextPasswordHash],
+        );
+        const currentToken = request.cookies[ADMIN_SESSION_COOKIE];
+        if (currentToken)
+          await client.query('DELETE FROM admin_sessions WHERE admin_id=$1 AND token_hash<>$2', [
+            record.id,
+            tokenDigest(currentToken),
+          ]);
+        return updated;
+      });
+      return { admin: result };
+    } catch (error) {
+      if ((error as { code?: string }).code === '23505')
+        return reply.code(409).send({ error: '管理员账号已存在' });
+      throw error;
+    }
+  });
 
   app.post(
     '/api/admin/login',
