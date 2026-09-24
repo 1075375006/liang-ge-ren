@@ -84,7 +84,7 @@
 
 Task 字段包括 `id,title,description,reward,mode,status,creatorId,assignedTo,claimantId,submission,reviewNote,dueAt,createdAt,submittedAt,approvedAt,scheduleId`。
 
-- `POST /tasks {title,description,reward,mode:'ASSIGNED'|'RACE'|'TOGETHER',dueAt?,requestKey?}`；指定任务自动指向伴侣，`TOGETHER` 表示共同完成的小事。
+- `POST /tasks {title,description,reward,mode:'ASSIGNED'|'RACE'|'TOGETHER',dueAt?,requestKey?}`；指定任务自动指向伴侣，`TOGETHER` 表示双方都能领取的共同完成约定，当前仍由一位领取人提交、另一人验收并发放一次奖励。
 - `POST /tasks/:id/claim {}`、`POST /tasks/:id/release {}`、`POST /tasks/:id/submit {submission?}`、`POST /tasks/:id/review {approve,note?}`、`POST /tasks/:id/cancel {}`。
 - 完成说明最多 3000 字符，省略、空字符串或纯空白保存为 `null`；有内容则去掉首尾空白。仅领取人提交，另一人验收，禁止自审；通过后才发积分，退回须填写原因。
 - `POST /schedules {title,description,reward,mode,kind:'ONCE'|'DAILY'|'WEEKLY',runAt?:ISO,time?:'HH:mm',weekday?:1..7,durationHours:1..168,requestKey?}`。
