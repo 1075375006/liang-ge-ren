@@ -19,6 +19,7 @@ import { RELATIONSHIP_CONTRACT_TEXT, RELATIONSHIP_CONTRACT_VERSION } from './con
 import { registerListRoutes } from './listing.js';
 import { enqueueVerification } from './verification.js';
 import { createRecordOnce, creationRequestKey } from './creation.js';
+import { publicOrigin } from './public-url.js';
 import {
   appId,
   authorizationUrl,
@@ -100,6 +101,10 @@ async function spaceContext(request: FastifyRequest, requirePair = true) {
     [user.id],
   );
   if (!space) fail(403, '请先创建或加入两个人的空间');
+  await query('UPDATE spaces SET public_origin=COALESCE(public_origin,$2) WHERE id=$1', [
+    space.id,
+    publicOrigin(request),
+  ]);
   if (requireVerifiedEmail() && !user.email_verified) fail(403, '请先验证邮箱');
   if (space.archived_at && request.method !== 'GET')
     fail(409, '空间已关闭，仅可导出或查看历史记录');
@@ -130,7 +135,7 @@ const taskFields = {
   title: titleField,
   description: descriptionField,
   reward: z.number().int().min(1).max(10000),
-  mode: z.enum(['ASSIGNED', 'RACE']),
+  mode: z.enum(['ASSIGNED', 'RACE', 'TOGETHER']),
 };
 const dueDate = z.string().datetime({ offset: true, message: '请填写有效日期时间' });
 const productFields = {
@@ -369,7 +374,7 @@ export async function buildApp(options: { wechatFetch?: typeof fetch } = {}) {
             [input.name, input.email, hash, input.acceptTerms ? new Date() : null],
           );
           await client.query('INSERT INTO wallets (user_id) VALUES ($1)', [user.id]);
-          if (smtpConfigured()) await enqueueVerification(client, user);
+          if (smtpConfigured()) await enqueueVerification(client, user, publicOrigin(request));
           const session = await createSession(client, user.id);
           return { user, session };
         });
@@ -439,10 +444,7 @@ export async function buildApp(options: { wechatFetch?: typeof fetch } = {}) {
       if (intent === 'bind' && !current) fail(401, '请先登录原账号再绑定微信');
       const browserSecret = newSecret(32);
       const state = newSecret(32);
-      const redirectUri = new URL(
-        callbackPath(state),
-        process.env.APP_URL ?? 'http://localhost:33442',
-      ).toString();
+      const redirectUri = new URL(callbackPath(state), publicOrigin(request)).toString();
       await transaction(async (client) => {
         await client.query(
           `INSERT INTO oauth_states(state_hash,browser_hash,intent,user_id,session_hash,app_id,expires_at)
@@ -627,7 +629,7 @@ export async function buildApp(options: { wechatFetch?: typeof fetch } = {}) {
     if (!smtpConfigured()) fail(503, '邮件服务尚未配置，暂时不能验证邮箱');
     const email = z.object({ email: emailField }).parse(request.body).email;
     const token = randomBytes(32).toString('hex');
-    const url = new URL(process.env.APP_URL?.trim() || 'http://localhost:33442');
+    const url = new URL(publicOrigin(request));
     url.searchParams.set('verify', token);
     await transaction(async (client) => {
       const activeUser = await client.query(
@@ -742,7 +744,7 @@ export async function buildApp(options: { wechatFetch?: typeof fetch } = {}) {
       rows: [stats],
     } = await query(
       `SELECT
-      count(*) FILTER (WHERE status='OPEN' AND (mode='RACE' OR assigned_to=$2) AND (due_at IS NULL OR due_at>now()))::int AS open,
+      count(*) FILTER (WHERE status='OPEN' AND (mode IN ('RACE','TOGETHER') OR assigned_to=$2) AND (due_at IS NULL OR due_at>now()))::int AS open,
       count(*) FILTER (WHERE status='CLAIMED' AND claimant_id=$2 AND (due_at IS NULL OR due_at>now()))::int AS claimed,
       count(*) FILTER (WHERE status='SUBMITTED' AND claimant_id<>$2)::int AS review,
       count(*) FILTER (WHERE status='APPROVED' AND claimant_id=$2)::int AS completed
@@ -821,8 +823,8 @@ export async function buildApp(options: { wechatFetch?: typeof fetch } = {}) {
       const {
         rows: [created],
       } = await client.query(
-        `INSERT INTO spaces(name,invite_code,invite_expires_at) VALUES($1,$2,now()+interval '48 hours') RETURNING *`,
-        [input.name, invitation()],
+        `INSERT INTO spaces(name,invite_code,invite_expires_at,public_origin) VALUES($1,$2,now()+interval '48 hours',$3) RETURNING *`,
+        [input.name, invitation(), publicOrigin(request)],
       );
       await client.query('INSERT INTO memberships(user_id,space_id,slot) VALUES($1,$2,1)', [
         user.id,
@@ -885,8 +887,8 @@ export async function buildApp(options: { wechatFetch?: typeof fetch } = {}) {
         const {
           rows: [updated],
         } = await client.query(
-          'UPDATE spaces SET invite_code=NULL,invite_expires_at=NULL WHERE id=$1 RETURNING *',
-          [found.id],
+          'UPDATE spaces SET invite_code=NULL,invite_expires_at=NULL,public_origin=COALESCE(public_origin,$2) WHERE id=$1 RETURNING *',
+          [found.id, publicOrigin(request)],
         );
         await notify(client, {
           userId: members[0].user_id,
@@ -919,6 +921,118 @@ export async function buildApp(options: { wechatFetch?: typeof fetch } = {}) {
       return found;
     });
     return { space: camel(updated) };
+  });
+  app.post('/api/spaces/email-invite', async (request) => {
+    const { user, space } = await spaceContext(request, false);
+    if (requireVerifiedEmail() && !user.email_verified) fail(403, '请先验证邮箱，再邀请伴侣');
+    if (!smtpConfigured()) fail(503, '请先在管理后台配置并测试邮箱服务');
+    const { email } = z.object({ email: emailField }).parse(request.body);
+    const token = randomBytes(32).toString('hex');
+    const link = new URL(publicOrigin(request));
+    link.search = '';
+    link.hash = '';
+    link.searchParams.set('invite', token);
+    await transaction(async (client) => {
+      const {
+        rows: [lockedSpace],
+      } = await client.query(
+        'SELECT id FROM spaces WHERE id=$1 AND archived_at IS NULL FOR UPDATE',
+        [space.id],
+      );
+      if (!lockedSpace) fail(409, '空间已经关闭');
+      const { rows: members } = await client.query(
+        'SELECT user_id FROM memberships WHERE space_id=$1 ORDER BY slot',
+        [space.id],
+      );
+      if (members.length !== 1) fail(409, '伴侣已加入，无需再次邀请');
+      const {
+        rows: [invite],
+      } = await client.query(
+        `INSERT INTO partner_invites(token_hash,space_id,inviter_id,invite_email,expires_at)
+         VALUES($1,$2,$3,$4,now()+interval '48 hours') RETURNING id`,
+        [digest(token), space.id, user.id, email],
+      );
+      await client.query(
+        `INSERT INTO email_outbox(user_id,to_email,subject,body,kind,partner_invite_id,next_attempt_at)
+         VALUES($1,$2,$3,$4,'PARTNER_INVITE',$5,$6)`,
+        [
+          user.id,
+          email,
+          `${user.name} 邀请你加入“两个人”`,
+          `${user.name} 邀请你一起使用“两个人”。\n\n打开链接后即可登录或创建账号，并进入相处契约页面完成绑定：\n${link.toString()}\n\n链接 48 小时内有效。`,
+          invite.id,
+          new Date(),
+        ],
+      );
+    });
+    return { ok: true, email };
+  });
+  app.post('/api/spaces/email-invite/accept', async (request) => {
+    const user = loggedIn(request);
+    const { token } = z
+      .object({ token: z.string().regex(/^[a-f0-9]{64}$/, '邀请链接无效') })
+      .parse(request.body);
+    const space = await transaction(async (client) => {
+      const {
+        rows: [activeUser],
+      } = await client.query(
+        'SELECT id,email FROM users WHERE id=$1 AND deleted_at IS NULL FOR UPDATE',
+        [user.id],
+      );
+      if (!activeUser) fail(401, '账号状态已变化，请重新登录');
+      const {
+        rows: [invite],
+      } = await client.query(
+        `SELECT i.*,s.name,s.archived_at FROM partner_invites i JOIN spaces s ON s.id=i.space_id
+         WHERE i.token_hash=$1 AND i.accepted_at IS NULL AND i.expires_at>now() FOR UPDATE`,
+        [digest(token)],
+      );
+      if (!invite) fail(409, '邀请链接不存在、已过期或已经使用');
+      if (!activeUser.email || activeUser.email.toLowerCase() !== invite.invite_email.toLowerCase())
+        fail(403, '请使用收到邀请的邮箱登录或注册');
+      if (invite.archived_at) fail(409, '邀请对应的空间已经关闭');
+      if (invite.inviter_id === user.id) fail(409, '不能接受自己发出的邀请');
+      if ((await client.query('SELECT 1 FROM memberships WHERE user_id=$1', [user.id])).rowCount)
+        fail(409, '你已经加入了一个空间');
+      const { rows: members } = await client.query(
+        'SELECT user_id FROM memberships WHERE space_id=$1 ORDER BY slot',
+        [invite.space_id],
+      );
+      if (members.length !== 1) fail(409, '这个空间已经满员');
+      await client.query('INSERT INTO memberships(user_id,space_id,slot) VALUES($1,$2,2)', [
+        user.id,
+        invite.space_id,
+      ]);
+      await client.query('UPDATE partner_invites SET accepted_at=now() WHERE id=$1', [invite.id]);
+      await client.query('UPDATE spaces SET invite_code=NULL,invite_expires_at=NULL WHERE id=$1', [
+        invite.space_id,
+      ]);
+      await notify(client, {
+        userId: invite.inviter_id,
+        spaceId: invite.space_id,
+        title: '两个人到齐啦',
+        body: `${user.name} 接受了你的邮箱邀请，接下来一起确认相处契约吧。`,
+        kind: 'PAIRED',
+        actionPath: '/?page=account',
+      });
+      return invite;
+    });
+    return { ok: true, space: { id: space.space_id, name: space.name } };
+  });
+  app.get('/api/spaces/email-invite/info', async (request) => {
+    const { token } = z
+      .object({ token: z.string().regex(/^[a-f0-9]{64}$/, '邀请链接无效') })
+      .parse(request.query);
+    const {
+      rows: [invite],
+    } = await query<{ invite_email: string; inviter_name: string }>(
+      `SELECT i.invite_email,u.name AS inviter_name FROM partner_invites i
+       JOIN users u ON u.id=i.inviter_id
+       WHERE i.token_hash=$1 AND i.accepted_at IS NULL AND i.expires_at>now()`,
+      [digest(token)],
+    );
+    if (!invite) fail(404, '邀请链接不存在、已过期或已经使用');
+    return { email: invite.invite_email, inviterName: invite.inviter_name };
   });
   app.patch('/api/settings', async (request) => {
     const user = loggedIn(request);
@@ -958,7 +1072,7 @@ export async function buildApp(options: { wechatFetch?: typeof fetch } = {}) {
       if (!user.email) fail(409, '请先补充邮箱');
       if (!smtpConfigured()) fail(409, '邮件服务尚未配置，请联系部署者配置 SMTP');
       const token = randomBytes(32).toString('hex');
-      const url = new URL(process.env.APP_URL?.trim() || 'http://localhost:33442');
+      const url = new URL(publicOrigin(request));
       url.searchParams.set('verify', token);
       await transaction(async (client) => {
         const activeUser = await client.query(
@@ -1073,7 +1187,12 @@ export async function buildApp(options: { wechatFetch?: typeof fetch } = {}) {
           await notify(client, {
             userId: partner.id,
             spaceId: space.id,
-            title: input.mode === 'RACE' ? '有一件可以抢的小事' : '收到一个新约定',
+            title:
+              input.mode === 'RACE'
+                ? '有一件可以抢的小事'
+                : input.mode === 'TOGETHER'
+                  ? '有一件要一起完成的小事'
+                  : '收到一个新约定',
             body: `${user.name} 发布了「${input.title}」，快来领取吧！完成并通过验收可获得 ${input.reward} 积分。${input.description ? `\n约定内容：${input.description}` : ''}`,
             kind: 'TASK_CREATED',
             actionPath: `/?page=tasks&task=${created.id}`,

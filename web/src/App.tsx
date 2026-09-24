@@ -127,6 +127,9 @@ export default function App() {
       ? location.hash.slice('#reset-password='.length)
       : null,
   );
+  const [inviteToken] = useState(() => new URLSearchParams(location.search).get('invite'));
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteName, setInviteName] = useState('');
   const [legalOpen, setLegalOpen] = useState(false);
   const [page, setPage] = useState<Page>(currentPage);
   const [modal, setModal] = useState<ModalState>(null);
@@ -207,6 +210,33 @@ export default function App() {
     },
     [refresh],
   );
+  useEffect(() => {
+    if (!inviteToken) return;
+    void api<{ email: string; inviterName: string }>(
+      `/spaces/email-invite/info?token=${encodeURIComponent(inviteToken)}`,
+    )
+      .then((data) => {
+        setInviteEmail(data.email);
+        setInviteName(data.inviterName);
+      })
+      .catch((error) => setToast({ text: error.message, error: true }));
+  }, [inviteToken]);
+  const inviteAttemptedFor = useRef<string | null>(null);
+  useEffect(() => {
+    const userId = bootstrap?.user?.id;
+    if (!userId || !inviteToken || inviteAttemptedFor.current === userId) return;
+    inviteAttemptedFor.current = userId;
+    void perform(
+      '/spaces/email-invite/accept',
+      { token: inviteToken },
+      '邀请已接受，请先确认你们的相处契约',
+    ).then((success) => {
+      if (!success) return;
+      const url = new URL(location.href);
+      url.searchParams.delete('invite');
+      history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
+    });
+  }, [bootstrap?.user?.id, inviteToken, perform]);
   useEffect(() => {
     const params = new URLSearchParams(location.search),
       token = params.get('verify') || params.get('token');
@@ -488,6 +518,8 @@ export default function App() {
           onPolicy={() => setLegalOpen(true)}
           wechatEnabled={bootstrap.wechatEnabled}
           onWechat={() => startWechat('login')}
+          initialEmail={inviteEmail}
+          inviteName={inviteName}
           onSubmit={async (path, body) => {
             await perform(path, body, '欢迎来到两个人');
           }}
@@ -500,42 +532,20 @@ export default function App() {
         {toastView}
       </>
     );
-  if (bootstrap.requireVerifiedEmail && !bootstrap.user.emailVerified)
+  if (
+    (!bootstrap.space || !bootstrap.partner) &&
+    bootstrap.requireVerifiedEmail &&
+    !bootstrap.user.emailVerified
+  )
     return (
-      <div className="onboard-shell">
-        <Brand />
-        <section className="onboard-card">
-          <h1>先确认这是你的邮箱</h1>
-          <p>
-            验证邮箱后，就能创建或加入两个人的空间。
-            {bootstrap.user.email
-              ? '注册验证邮件已发送，请查收收件箱与垃圾邮件。'
-              : '请先补充邮箱，我们会发送验证链接。'}
-          </p>
-          <WeChatAccountCard
-            bootstrap={bootstrap}
-            busy={busy}
-            onAction={perform}
-            onWechat={() => startWechat('bind')}
-          />
-          <Button
-            className="primary wide"
-            onClick={() =>
-              void refresh().catch((error) => setToast({ text: error.message, error: true }))
-            }
-          >
-            我已验证，继续
-          </Button>
-          <Button
-            className="ghost wide"
-            busy={busy}
-            onClick={() => perform('/auth/logout', {}, '已退出登录')}
-          >
-            退出登录
-          </Button>
-        </section>
-        {toastView}
-      </div>
+      <EmailVerificationGate
+        bootstrap={bootstrap}
+        busy={busy}
+        onAction={perform}
+        onWechat={() => startWechat('bind')}
+        onRefresh={refresh}
+        toast={toastView}
+      />
     );
   if (bootstrap.space?.archivedAt)
     return <ArchivedSpace bootstrap={bootstrap} busy={busy} onAction={perform} toast={toastView} />;
@@ -564,6 +574,17 @@ export default function App() {
         toast={toastView}
       />
     );
+  if (bootstrap.requireVerifiedEmail && !bootstrap.user.emailVerified)
+    return (
+      <EmailVerificationGate
+        bootstrap={bootstrap}
+        busy={busy}
+        onAction={perform}
+        onWechat={() => startWechat('bind')}
+        onRefresh={refresh}
+        toast={toastView}
+      />
+    );
 
   const user = bootstrap.user,
     partner = bootstrap.partner;
@@ -575,7 +596,9 @@ export default function App() {
     (task) => task.status === 'SUBMITTED' && task.claimantId !== user.id,
   );
   const openTasks = data.tasks.filter(
-    (task) => task.status === 'OPEN' && (task.mode === 'RACE' || task.assignedTo === user.id),
+    (task) =>
+      task.status === 'OPEN' &&
+      (task.mode === 'RACE' || task.mode === 'TOGETHER' || task.assignedTo === user.id),
   );
   const activeTab: Page = page === 'tasks' || page === 'shop' ? page : 'settings';
   const secondaryPage = !navigation.some((item) => item.id === page);
@@ -1647,11 +1670,15 @@ function Auth({
   busy,
   wechatEnabled,
   onWechat,
+  initialEmail,
+  inviteName,
   onSubmit,
 }: {
   busy: boolean;
   wechatEnabled: boolean;
   onWechat: () => Promise<void>;
+  initialEmail?: string;
+  inviteName?: string;
   onSubmit: (path: string, body: unknown) => Promise<void>;
   bootstrap: Bootstrap;
   onForgot: () => void;
@@ -1659,6 +1686,10 @@ function Auth({
 }) {
   const [register, setRegister] = useState(false);
   const [accepted, setAccepted] = useState(false);
+  const [email, setEmail] = useState(initialEmail ?? '');
+  useEffect(() => {
+    if (initialEmail && !email) setEmail(initialEmail);
+  }, [email, initialEmail]);
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const values = new FormData(event.currentTarget);
@@ -1707,6 +1738,11 @@ function Auth({
           <span className="eyebrow">WELCOME TO OUR LITTLE SPACE</span>
           <h2>{register ? '美好的日常，从这里开始' : '欢迎回到，两个人'}</h2>
           <p>{register ? '创建你的账号，邀请另一半加入。' : '你们的小小约定，还在这里等你。'}</p>
+          {inviteName && (
+            <p className="account-hint invite-hint">
+              {inviteName} 邀请你加入，登录或注册后就会进入相处契约。
+            </p>
+          )}
           <div className="auth-tabs">
             <button className={!register ? 'active' : ''} onClick={() => setRegister(false)}>
               登录
@@ -1737,6 +1773,8 @@ function Auth({
                 maxLength={254}
                 required
                 autoComplete="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
               />
             </label>
             <label>
@@ -1910,9 +1948,40 @@ function Onboarding({
                 对方已加入
               </Button>
             </div>
+            <form
+              className="email-invite-form"
+              onSubmit={async (event) => {
+                event.preventDefault();
+                const form = new FormData(event.currentTarget);
+                if (
+                  await onAction(
+                    '/spaces/email-invite',
+                    { email: String(form.get('email')).trim() },
+                    '邀请邮件已发送，请让对方从邮件链接进入',
+                  )
+                )
+                  event.currentTarget.reset();
+              }}
+            >
+              <label>
+                直接发到对方邮箱
+                <input
+                  name="email"
+                  type="email"
+                  required
+                  maxLength={254}
+                  placeholder="partner@example.com"
+                  autoComplete="email"
+                />
+              </label>
+              <Button busy={busy} className="primary wide" type="submit">
+                <Mail size={17} />
+                发送邀请链接
+              </Button>
+            </form>
             <div className="form-hint">
               <ShieldCheck size={16} />
-              另一半注册并输入邀请码后，两个人的任务和心愿小店就会开启。
+              邀请链接会带对方进入注册、登录和契约确认，完成后你们就可以开始啦。
             </div>
           </>
         ) : (
@@ -2028,6 +2097,54 @@ function ContractGate({
           <ShieldCheck size={15} />
           可以诚实沟通、一起调整，但不要敷衍对方的心意。
         </p>
+      </section>
+      {toast}
+    </div>
+  );
+}
+
+function EmailVerificationGate({
+  bootstrap,
+  busy,
+  onAction,
+  onWechat,
+  onRefresh,
+  toast,
+}: {
+  bootstrap: Bootstrap;
+  busy: boolean;
+  onAction: (path: string, body: unknown, message: string, method?: string) => Promise<boolean>;
+  onWechat: () => Promise<void>;
+  onRefresh: () => Promise<unknown>;
+  toast: React.ReactNode;
+}) {
+  return (
+    <div className="onboard-shell">
+      <Brand />
+      <section className="onboard-card">
+        <h1>先确认这是你的邮箱</h1>
+        <p>
+          验证邮箱后，就能创建或加入两个人的空间。
+          {bootstrap.user?.email
+            ? '注册验证邮件已发送，请查收收件箱与垃圾邮件。'
+            : '请先补充邮箱，我们会发送验证链接。'}
+        </p>
+        <WeChatAccountCard
+          bootstrap={bootstrap}
+          busy={busy}
+          onAction={onAction}
+          onWechat={onWechat}
+        />
+        <Button className="primary wide" onClick={() => void onRefresh().catch(() => undefined)}>
+          我已验证，继续
+        </Button>
+        <Button
+          className="ghost wide"
+          busy={busy}
+          onClick={() => onAction('/auth/logout', {}, '已退出登录')}
+        >
+          退出登录
+        </Button>
       </section>
       {toast}
     </div>

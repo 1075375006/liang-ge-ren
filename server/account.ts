@@ -3,6 +3,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { query, transaction } from './db.js';
 import { smtpConfigured } from './notify.js';
+import { publicOrigin } from './public-url.js';
 import {
   SESSION_COOKIE,
   cookieOptions,
@@ -60,7 +61,7 @@ export function registerAccountRoutes(app: FastifyInstance, { fail }: { fail: Fa
         // Enforce a recipient limit as well as an IP limit, without revealing account existence.
         if (recent.cooling_down || recent.count >= 3) return;
         const token = randomBytes(32).toString('hex');
-        const link = new URL(process.env.APP_URL?.trim() || 'http://localhost:33442');
+        const link = new URL(publicOrigin(request));
         link.search = '';
         link.hash = `reset-password=${token}`;
         await client.query(

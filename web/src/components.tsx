@@ -7,6 +7,7 @@ import {
   Clock3,
   Gift,
   Heart,
+  HeartHandshake,
   LoaderCircle,
   Plus,
   Sparkles,
@@ -204,7 +205,11 @@ export function TaskCard({
       <span className="task-copy">
         <span className="task-title">{task.title}</span>
         <span className="task-meta">
-          {task.mode === 'RACE' ? '双人抢单' : `给${personName(task.assignedTo, bootstrap)}`}
+          {task.mode === 'RACE'
+            ? '双人抢单'
+            : task.mode === 'TOGETHER'
+              ? '共同完成'
+              : `给${personName(task.assignedTo, bootstrap)}`}
           {task.dueAt && (
             <>
               <i />
@@ -315,6 +320,15 @@ export function TaskForm({
           >
             <Zap size={20} />
             <strong>谁先领谁完成</strong>
+          </button>
+          <button
+            type="button"
+            className={`choice choice-compact ${mode === 'TOGETHER' ? 'selected' : ''}`}
+            aria-pressed={mode === 'TOGETHER'}
+            onClick={() => setMode('TOGETHER')}
+          >
+            <HeartHandshake size={20} />
+            <strong>一起完成</strong>
           </button>
         </div>
       </fieldset>
@@ -539,7 +553,8 @@ export function TaskDetail({
   const [note, setNote] = useState('');
   const own = task.claimantId === bootstrap.user?.id;
   const canClaim =
-    task.status === 'OPEN' && (task.mode === 'RACE' || task.assignedTo === bootstrap.user?.id);
+    task.status === 'OPEN' &&
+    (task.mode === 'RACE' || task.mode === 'TOGETHER' || task.assignedTo === bootstrap.user?.id);
   return (
     <div className="task-detail">
       <div className="detail-badges">
@@ -549,7 +564,9 @@ export function TaskDetail({
         <span className="points-pill">
           <Sparkles size={14} /> {task.reward} 积分
         </span>
-        <span className="muted">{task.mode === 'RACE' ? '双人抢单' : '专属任务'}</span>
+        <span className="muted">
+          {task.mode === 'RACE' ? '双人抢单' : task.mode === 'TOGETHER' ? '共同完成' : '专属任务'}
+        </span>
       </div>
       <p className="detail-description">{task.description || '没有额外要求，用心完成就好。'}</p>
       <div className="detail-info">

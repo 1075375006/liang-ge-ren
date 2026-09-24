@@ -1,15 +1,17 @@
 import { randomBytes } from 'node:crypto';
 import type { PoolClient } from 'pg';
 import { digest } from './security.js';
+import { publicOrigin } from './public-url.js';
 
 /** The caller holds the account row lock (or just inserted the account). */
 export async function enqueueVerification(
   client: PoolClient,
   user: { id: string; email: string | null },
+  origin?: string,
 ) {
   if (!user.email) return;
   const token = randomBytes(32).toString('hex');
-  const url = new URL(process.env.APP_URL?.trim() || 'http://localhost:33442');
+  const url = new URL(origin || publicOrigin());
   url.search = '';
   url.hash = '';
   url.searchParams.set('verify', token);

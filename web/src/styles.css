@@ -3201,6 +3201,12 @@ main {
   line-height: 1.7;
   margin: 9px 0 0;
 }
+.invite-hint {
+  color: #b27688;
+  background: #fff5f7;
+  border-radius: 10px;
+  padding: 8px 10px;
+}
 .auth-wechat > .account-hint {
   text-align: center;
   margin-top: 10px;
@@ -3332,6 +3338,39 @@ main {
 .onboard-actions .button {
   font-size: 10px;
   padding: 7px;
+}
+.email-invite-form {
+  display: grid;
+  gap: 12px;
+  margin: 20px 0 14px;
+  padding: 15px;
+  border: 1px solid #f0dfe3;
+  border-radius: 14px;
+  background: #fffafb;
+}
+.email-invite-form label {
+  display: grid;
+  gap: 7px;
+  color: #a47d8a;
+  font-size: 10px;
+}
+.email-invite-form input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #ead6dc;
+  border-radius: 10px;
+  background: #fff;
+  color: #765967;
+  padding: 10px 11px;
+  font: inherit;
+  outline: none;
+}
+.email-invite-form input:focus {
+  border-color: #d99bad;
+  box-shadow: 0 0 0 3px #f9e7eb;
+}
+.email-invite-form .button {
+  margin-top: 1px;
 }
 .onboard-card > .form-hint {
   text-align: left;

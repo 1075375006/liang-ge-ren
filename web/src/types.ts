@@ -51,7 +51,7 @@ export type Task = {
   title: string;
   description: string;
   reward: number;
-  mode: 'ASSIGNED' | 'RACE';
+  mode: 'ASSIGNED' | 'RACE' | 'TOGETHER';
   status: 'OPEN' | 'CLAIMED' | 'SUBMITTED' | 'APPROVED' | 'CANCELLED' | 'EXPIRED';
   creatorId: string;
   assignedTo: string | null;
@@ -69,7 +69,7 @@ export type Schedule = {
   title: string;
   description: string;
   reward: number;
-  mode: 'ASSIGNED' | 'RACE';
+  mode: 'ASSIGNED' | 'RACE' | 'TOGETHER';
   kind: 'ONCE' | 'DAILY' | 'WEEKLY';
   time?: string;
   weekday?: number;

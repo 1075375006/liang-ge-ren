@@ -1,4 +1,5 @@
 import type { PoolClient } from 'pg';
+import { publicOrigin } from './public-url.js';
 
 export function smtpConfigured(): boolean {
   return Boolean(process.env.SMTP_HOST && process.env.SMTP_FROM);
@@ -11,6 +12,7 @@ export type NotificationInput = {
   body: string;
   kind?: string;
   actionPath?: string;
+  origin?: string;
 };
 
 export async function notify(client: PoolClient, data: NotificationInput): Promise<void> {
@@ -20,7 +22,13 @@ export async function notify(client: PoolClient, data: NotificationInput): Promi
     'INSERT INTO notifications (user_id,space_id,title,body,kind) VALUES ($1,$2,$3,$4,$5) RETURNING id',
     [data.userId, data.spaceId, data.title, data.body, data.kind ?? 'GENERAL'],
   );
-  const base = new URL(process.env.APP_URL?.trim() || 'http://localhost:33442');
+  const {
+    rows: [space],
+  } = await client.query<{ public_origin: string | null }>(
+    'SELECT public_origin FROM spaces WHERE id=$1',
+    [data.spaceId],
+  );
+  const base = new URL(data.origin || space?.public_origin || publicOrigin());
   const target = new URL(data.actionPath ?? '/', base);
   const link = target.origin === base.origin ? target.toString() : base.toString();
   // Use the same millisecond application clock as the worker's retry/lease checks.

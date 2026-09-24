@@ -23,7 +23,7 @@ type ScheduleRow = ScheduleTiming & {
   title: string;
   description: string;
   reward: number;
-  mode: 'ASSIGNED' | 'RACE';
+  mode: 'ASSIGNED' | 'RACE' | 'TOGETHER';
   duration_hours: number;
   next_run_at: Date;
 };
@@ -41,6 +41,11 @@ type OutboxRow = {
 
 // Recheck eligibility at delivery time: settings and verification tokens can change after enqueueing.
 const mailIneligibleReason = `CASE
+  WHEN mail.kind='PARTNER_INVITE' AND NOT EXISTS (
+    SELECT 1 FROM partner_invites AS invite
+    WHERE invite.id=mail.partner_invite_id AND invite.accepted_at IS NULL AND invite.expires_at>$1
+  ) THEN '伴侣邀请已过期或已使用'
+  WHEN mail.kind='PARTNER_INVITE' THEN NULL
   WHEN recipient.deleted_at IS NOT NULL THEN '账号已注销，此邮件不再发送'
   WHEN recipient.email IS NULL OR lower(recipient.email)<>lower(mail.to_email) THEN '收件邮箱已变更，此邮件不再发送'
   WHEN mail.kind='VERIFY_EMAIL' AND recipient.email_verified THEN '邮箱已验证，无需再发送验证邮件'
@@ -54,7 +59,7 @@ const mailIneligibleReason = `CASE
     WHERE token.id=mail.password_reset_token_id AND token.user_id=mail.user_id
       AND token.used_at IS NULL AND token.expires_at>$1
   ) THEN '重置链接已过期或失效，请重新申请'
-  WHEN mail.kind NOT IN ('VERIFY_EMAIL','PASSWORD_RESET') AND NOT recipient.email_verified THEN '邮箱尚未验证，业务邮件不再发送'
+  WHEN mail.kind NOT IN ('VERIFY_EMAIL','PASSWORD_RESET','PARTNER_INVITE') AND NOT recipient.email_verified THEN '邮箱尚未验证，业务邮件不再发送'
   WHEN mail.kind NOT IN ('VERIFY_EMAIL','PASSWORD_RESET') AND NOT recipient.notify_email THEN '邮件提醒已关闭，此邮件不再发送'
   ELSE NULL END`;
 
@@ -115,7 +120,12 @@ export async function runScheduler(now: Date = new Date()) {
             await notify(client, {
               userId: recipient.user_id,
               spaceId: schedule.space_id,
-              title: schedule.mode === 'RACE' ? '新的抢单任务' : '有一份新的约定',
+              title:
+                schedule.mode === 'RACE'
+                  ? '新的抢单任务'
+                  : schedule.mode === 'TOGETHER'
+                    ? '有一件要一起完成的小事'
+                    : '有一份新的约定',
               body: `${recipient.creator_name} 的定时约定「${schedule.title}」已发布，快来领取吧！完成并通过验收可获得 ${schedule.reward} 积分。请在北京时间 ${dueLabel} 前提交。${schedule.description ? `\n约定内容：${schedule.description}` : ''}`,
               kind: 'TASK_CREATED',
               actionPath: `/?page=tasks&task=${result.rows[0].id}`,

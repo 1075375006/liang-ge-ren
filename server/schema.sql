@@ -46,8 +46,10 @@ CREATE TABLE IF NOT EXISTS spaces (
   name text NOT NULL,
   invite_code text UNIQUE,
   invite_expires_at timestamptz,
+  public_origin text,
   created_at timestamptz NOT NULL DEFAULT now()
 );
+ALTER TABLE spaces ADD COLUMN IF NOT EXISTS public_origin text;
 CREATE TABLE IF NOT EXISTS memberships (
   user_id uuid PRIMARY KEY REFERENCES users(id),
   space_id uuid NOT NULL REFERENCES spaces(id),
@@ -76,7 +78,7 @@ CREATE TABLE IF NOT EXISTS schedules (
   title text NOT NULL,
   description text NOT NULL DEFAULT '',
   reward integer NOT NULL CHECK (reward BETWEEN 1 AND 10000),
-  mode text NOT NULL CHECK (mode IN ('ASSIGNED', 'RACE')),
+  mode text NOT NULL CHECK (mode IN ('ASSIGNED', 'RACE', 'TOGETHER')),
   kind text NOT NULL CHECK (kind IN ('ONCE', 'DAILY', 'WEEKLY')),
   run_at timestamptz,
   time text,
@@ -85,7 +87,7 @@ CREATE TABLE IF NOT EXISTS schedules (
   active boolean NOT NULL DEFAULT true,
   next_run_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now(),
-  CHECK ((mode = 'ASSIGNED' AND assigned_to IS NOT NULL) OR (mode = 'RACE' AND assigned_to IS NULL)),
+  CHECK ((mode = 'ASSIGNED' AND assigned_to IS NOT NULL) OR (mode IN ('RACE','TOGETHER') AND assigned_to IS NULL)),
   CHECK ((kind = 'ONCE' AND run_at IS NOT NULL) OR (kind IN ('DAILY','WEEKLY') AND time ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$')),
   CHECK (kind <> 'WEEKLY' OR weekday IS NOT NULL)
 );
@@ -99,7 +101,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   title text NOT NULL,
   description text NOT NULL DEFAULT '',
   reward integer NOT NULL CHECK (reward BETWEEN 1 AND 10000),
-  mode text NOT NULL CHECK (mode IN ('ASSIGNED', 'RACE')),
+  mode text NOT NULL CHECK (mode IN ('ASSIGNED', 'RACE', 'TOGETHER')),
   status text NOT NULL DEFAULT 'OPEN' CHECK (status IN ('OPEN','CLAIMED','SUBMITTED','APPROVED','CANCELLED','EXPIRED')),
   submission text,
   review_note text,

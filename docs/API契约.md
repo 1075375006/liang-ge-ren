@@ -34,7 +34,7 @@
 
 配对完成后，双方必须分别确认相处契约：`GET /contract` 返回 `{version,text,myAccepted,partnerAccepted,ready}`，`POST /contract/accept {}` 记录当前成员确认时间。`ready=false` 时任务、计划、心愿、兑换、积分等业务接口返回 409，只有双方确认后才开放。
 
-`REGISTRATION_OPEN=false` 暂停新邮箱注册和新微信账号创建，已有账号可登录。`REQUIRE_VERIFIED_EMAIL=true` 时，未验证账号不能创建、加入空间或访问空间业务；微信新用户也需先补充并验证邮箱。
+`REGISTRATION_OPEN=false` 暂停新邮箱注册和新微信账号创建，已有账号可登录。`REQUIRE_VERIFIED_EMAIL=true` 时，未验证账号不能创建、加入空间或访问空间业务；收到邮箱邀请的新账号可以先接受邀请并确认相处契约，双方契约确认后仍需完成邮箱验证才能进入业务；微信新用户也需先补充并验证邮箱。
 
 ## 微信登录
 
@@ -49,6 +49,9 @@
 | `POST /spaces` | `{name}` → `{space}`；仅无空间的账号可创建 |
 | `POST /spaces/join` | `{code}` → `{space}`；48 小时一次性邀请码，空间最多两人 |
 | `POST /spaces/invite` | `{}`；刷新当前未满且未关闭空间的邀请码 |
+| `POST /spaces/email-invite` | `{email}`；向邮箱发送 48 小时邀请链接，链接可引导注册或登录并接受空间邀请 |
+| `GET /spaces/email-invite/info?token=...` | 返回邀请邮箱和邀请人展示名，用于注册页预填邮箱 |
+| `POST /spaces/email-invite/accept` | `{token}`；要求当前登录邮箱与邀请邮箱一致，接受后进入契约确认流程。邀请链接本身已发送到该邮箱，因此未验证的新账号也可以先完成绑定 |
 | `POST /spaces/archive` | `{confirmation:'关闭空间',password?}` → `{ok:true,spaceArchived:true}`；关闭当前空间，保留双方账号 |
 | `POST /spaces/leave-archived` | `{confirmation:'离开空间'}` → `{ok:true}`；仅可离开已关闭空间，余额结算清零并记录流水，移除本人的空间成员关系 |
 | `GET /account/export` | 下载 JSON，完整导出本人和当前空间可见数据，不受列表分页限制 |
@@ -81,7 +84,7 @@
 
 Task 字段包括 `id,title,description,reward,mode,status,creatorId,assignedTo,claimantId,submission,reviewNote,dueAt,createdAt,submittedAt,approvedAt,scheduleId`。
 
-- `POST /tasks {title,description,reward,mode:'ASSIGNED'|'RACE',dueAt?,requestKey?}`；指定任务自动指向伴侣。
+- `POST /tasks {title,description,reward,mode:'ASSIGNED'|'RACE'|'TOGETHER',dueAt?,requestKey?}`；指定任务自动指向伴侣，`TOGETHER` 表示共同完成的小事。
 - `POST /tasks/:id/claim {}`、`POST /tasks/:id/release {}`、`POST /tasks/:id/submit {submission?}`、`POST /tasks/:id/review {approve,note?}`、`POST /tasks/:id/cancel {}`。
 - 完成说明最多 3000 字符，省略、空字符串或纯空白保存为 `null`；有内容则去掉首尾空白。仅领取人提交，另一人验收，禁止自审；通过后才发积分，退回须填写原因。
 - `POST /schedules {title,description,reward,mode,kind:'ONCE'|'DAILY'|'WEEKLY',runAt?:ISO,time?:'HH:mm',weekday?:1..7,durationHours:1..168,requestKey?}`。
@@ -112,7 +115,7 @@ Task 字段包括 `id,title,description,reward,mode,status,creatorId,assignedTo,
 
 `server/db.ts` 导出 `pool`、`query`、`transaction`、`migrate`。迁移在事务与 PostgreSQL advisory 锁中执行，先执行幂等基线 `server/schema.sql`，再按名称顺序执行 `server/migrations/`，在 `schema_migrations` 保存校验和；已执行的增量迁移不可修改。
 
-`server/app.ts` 的 `buildApp()` 用于 API 与集成测试，`server/index.ts` 在监听前检查生产配置。生产要求安全 Cookie 和强数据库密码；域名与 HTTPS 由外部反向代理负责，`APP_URL` 可选。受控代理后配置 `TRUST_PROXY`，直接暴露 API 时不能盲目信任转发头。启用 Origin/Sec-Fetch-Site 检查、限流、安全响应头和请求大小限制。
+`server/app.ts` 的 `buildApp()` 用于 API 与集成测试，`server/index.ts` 在监听前检查生产配置。生产要求安全 Cookie 和强数据库密码；域名与 HTTPS 由外部反向代理负责，`APP_URL` 可选。留空时请求公开 origin 会记录到空间，用于后续通知邮件；受控代理后配置 `TRUST_PROXY`，直接暴露 API 时不能盲目信任转发头。启用 Origin/Sec-Fetch-Site 检查、限流、安全响应头和请求大小限制。
 
 ## 管理后台
 

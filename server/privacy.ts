@@ -3,6 +3,7 @@ import type { PoolClient } from 'pg';
 import { z } from 'zod';
 import { transaction } from './db.js';
 import { notify } from './notify.js';
+import { publicOrigin } from './public-url.js';
 import { SESSION_COOKIE, cookieOptions, digest, verifyPassword } from './security.js';
 
 type Fail = (statusCode: number, message: string) => never;
@@ -291,6 +292,7 @@ export function registerPrivacyRoutes(app: FastifyInstance, { fail }: { fail: Fa
             await notify(client, {
               userId: partner.user_id,
               spaceId: space.id,
+              origin: publicOrigin(request),
               kind: 'SPACE_ARCHIVED',
               title: '共同空间已关闭',
               body: `${account.name} 已关闭共同空间，此操作无法恢复。待兑现的兑换已退还积分，已兑现的记录保留原结果。双方账号继续保留，你可以先导出共同历史，再离开旧空间重新开始。`,
