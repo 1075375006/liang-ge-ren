@@ -21,6 +21,14 @@ import { enqueueVerification } from './verification.js';
 import { createRecordOnce, creationRequestKey } from './creation.js';
 import { publicOrigin } from './public-url.js';
 import {
+  nextStreakMilestone,
+  readMilestones,
+  readSpaceStreak,
+  syncTemplateUnlocks,
+  templateUnlockDays,
+  themeIsUnlocked,
+} from './streak.js';
+import {
   appId,
   authorizationUrl,
   callbackPath,
@@ -1039,7 +1047,21 @@ export async function buildApp(options: { wechatFetch?: typeof fetch } = {}) {
     const { notifyEmail, emailTheme } = z
       .object({
         notifyEmail: z.boolean().optional(),
-        emailTheme: z.enum(['strawberry', 'cream', 'mint', 'sky', 'lavender', 'night']).optional(),
+        emailTheme: z
+          .enum([
+            'strawberry',
+            'cream',
+            'mint',
+            'sky',
+            'lavender',
+            'night',
+            'line-puppy',
+            'lulu',
+            'nailong',
+            'yibubu',
+            'tom-jerry',
+          ])
+          .optional(),
       })
       .refine(
         (input) => input.notifyEmail !== undefined || input.emailTheme !== undefined,
@@ -1047,6 +1069,39 @@ export async function buildApp(options: { wechatFetch?: typeof fetch } = {}) {
       )
       .parse(request.body);
     if (notifyEmail && !user.email_verified) fail(409, '请先验证邮箱再开启邮件提醒');
+    if (emailTheme) {
+      const days = templateUnlockDays(emailTheme);
+      if (days === null) fail(400, '邮件模板不存在');
+      if (days > 0) {
+        const eligibility = await transaction(async (client) => {
+          const {
+            rows: [membership],
+          } = await client.query<{ space_id: string }>(
+            'SELECT space_id FROM memberships WHERE user_id=$1',
+            [user.id],
+          );
+          if (!membership) return false;
+          const streak = await readSpaceStreak(client, membership.space_id);
+          await syncTemplateUnlocks(client, membership.space_id, streak.current);
+          const unlocked = await themeIsUnlocked(
+            client,
+            user.id,
+            membership.space_id,
+            emailTheme!,
+            streak.current,
+          );
+          if (unlocked) {
+            await client.query(
+              `UPDATE email_template_unlocks SET claimed_at=COALESCE(claimed_at,now())
+               WHERE user_id=$1 AND template_id=$2`,
+              [user.id, emailTheme],
+            );
+          }
+          return unlocked;
+        });
+        if (!eligibility) fail(409, `连续完成 ${days} 天后即可解锁这款邮件模板`);
+      }
+    }
     const {
       rows: [updated],
     } = await query<User>(
@@ -1062,6 +1117,51 @@ export async function buildApp(options: { wechatFetch?: typeof fetch } = {}) {
     return {
       templates: EMAIL_THEMES.map((theme) => ({ ...theme, html: buildMailPreview(theme.id) })),
     };
+  });
+  app.get('/api/mail/streak', async (request) => {
+    const { user, space } = await spaceContext(request);
+    return transaction(async (client) => {
+      const streak = await readSpaceStreak(client, space.id);
+      await syncTemplateUnlocks(client, space.id, streak.current);
+      const milestones = await readMilestones(client, space.id, streak.current, user.id);
+      const nextMilestone = nextStreakMilestone(streak.current, milestones);
+      return {
+        streak: {
+          current: streak.current,
+          best: streak.best,
+          lastCompletedDate: streak.lastCompletedDate,
+          todayComplete: streak.todayComplete,
+        },
+        todayComplete: streak.todayComplete,
+        milestones,
+        nextMilestone,
+      };
+    });
+  });
+  app.post('/api/mail/templates/:id/claim', async (request) => {
+    const { user, space } = await spaceContext(request);
+    const { id: templateId } = z
+      .object({ id: z.string().trim().min(1).max(80) })
+      .parse(request.params);
+    return transaction(async (client) => {
+      const days = templateUnlockDays(templateId);
+      if (days === null) fail(404, '邮件模板不存在');
+      const streak = await readSpaceStreak(client, space.id);
+      await syncTemplateUnlocks(client, space.id, streak.current);
+      if (!(await themeIsUnlocked(client, user.id, space.id, templateId, streak.current)))
+        fail(409, `连续完成 ${days} 天后即可领取这款邮件模板`);
+      await client.query(
+        `INSERT INTO email_template_unlocks(user_id,space_id,template_id,streak_days,claimed_at)
+         VALUES($1,$2,$3,$4,now())
+         ON CONFLICT (user_id,template_id) DO UPDATE SET claimed_at=COALESCE(email_template_unlocks.claimed_at,EXCLUDED.claimed_at)`,
+        [user.id, space.id, templateId, days],
+      );
+      await client.query('UPDATE users SET email_theme=$2 WHERE id=$1 AND deleted_at IS NULL', [
+        user.id,
+        templateId,
+      ]);
+      return { ok: true, templateId, streakDays: days };
+    });
   });
   app.post(
     '/api/auth/verification',

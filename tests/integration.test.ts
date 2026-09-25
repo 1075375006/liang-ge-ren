@@ -6,6 +6,7 @@ import pg from 'pg';
 import type { FastifyInstance } from 'fastify';
 import { SMTPServer } from 'smtp-server';
 import type { AddressInfo } from 'node:net';
+import { DateTime } from 'luxon';
 
 const databaseName = `couple_test_${randomUUID().replaceAll('-', '')}`;
 const adminUrl =
@@ -722,25 +723,79 @@ test('自己的心愿、完整邮件通知与个人模板偏好', async (t) => {
     ).rows;
   }
 
-  await t.test('模板选择分别保存，不更改通知开关或另一人的偏好', async () => {
+  await t.test('模板选择分别保存，不更改通知开关或另一人的偏好；连续主题按天数解锁', async () => {
     assert.equal((await api('GET', '/mail/templates')).status, 401);
     const catalogue = await api('GET', '/mail/templates', a);
     ok(catalogue);
-    assert.equal(catalogue.body.templates.length, 6);
-    assert.equal(new Set(catalogue.body.templates.map((item: { id: string }) => item.id)).size, 6);
+    assert.equal(catalogue.body.templates.length, 11);
+    assert.equal(new Set(catalogue.body.templates.map((item: { id: string }) => item.id)).size, 11);
     assert.ok(
       catalogue.body.templates.every((item: { html: string }) => item.html.includes('<table')),
     );
     const otherTheme = (await api('GET', '/bootstrap', b)).body.user.emailTheme;
-    for (const template of catalogue.body.templates) {
+    const available = catalogue.body.templates.filter(
+      (item: { unlockDays?: number }) => (item.unlockDays ?? 0) === 0,
+    );
+    const locked = catalogue.body.templates.filter(
+      (item: { unlockDays?: number }) => (item.unlockDays ?? 0) > 0,
+    );
+    assert.equal(available.length, 6);
+    assert.deepEqual(
+      locked.map((item: { id: string; unlockDays: number }) => [item.id, item.unlockDays]),
+      [
+        ['line-puppy', 2],
+        ['lulu', 7],
+        ['nailong', 14],
+        ['yibubu', 21],
+        ['tom-jerry', 30],
+      ],
+    );
+    for (const template of available) {
       ok(await api('PATCH', '/settings', a, { emailTheme: template.id }));
       const state = (await api('GET', '/bootstrap', a)).body;
       assert.equal(state.user.emailTheme, template.id);
       assert.equal(state.user.notifyEmail, true);
     }
+    for (const template of locked) {
+      assert.equal((await api('PATCH', '/settings', a, { emailTheme: template.id })).status, 409);
+    }
     assert.equal((await api('GET', '/bootstrap', b)).body.user.emailTheme, otherTheme);
     assert.equal((await api('PATCH', '/settings', a, { emailTheme: 'unknown' })).status, 400);
     assert.equal((await api('PATCH', '/settings', a, {})).status, 400);
+  });
+
+  await t.test('双方连续完成两天后可以领取主题，领取状态按账号保留', async () => {
+    const spaceId = (await api('GET', '/bootstrap', a)).body.space.id as string;
+    const now = DateTime.now().setZone('Asia/Shanghai');
+    const approvedAt = [
+      now.minus({ days: 1, minutes: 20 }).toUTC().toJSDate(),
+      now.minus({ minutes: 10 }).toUTC().toJSDate(),
+    ];
+    for (const [index, timestamp] of approvedAt.entries()) {
+      for (const claimant of [a, b]) {
+        const creator = claimant.id === a.id ? b : a;
+        await database.query(
+          `INSERT INTO tasks(space_id,creator_id,claimant_id,title,reward,mode,status,approved_at,created_at)
+           VALUES($1,$2,$3,$4,1,'RACE','APPROVED',$5,$5)`,
+          [spaceId, creator.id, claimant.id, `连续完成测试 ${index}`, timestamp],
+        );
+      }
+    }
+    const streak = await api('GET', '/mail/streak', a);
+    ok(streak);
+    assert.equal(streak.body.streak.current, 2);
+    assert.equal(streak.body.nextMilestone.templateId, 'lulu');
+    const claim = await api('POST', '/mail/templates/line-puppy/claim', a, {});
+    ok(claim);
+    assert.equal(claim.body.streakDays, 2);
+    assert.equal((await api('GET', '/bootstrap', a)).body.user.emailTheme, 'line-puppy');
+    assert.equal((await api('POST', '/mail/templates/line-puppy/claim', b, {})).status, 200);
+    const after = await api('GET', '/mail/streak', a);
+    assert.equal(
+      after.body.milestones.find((item: { templateId: string }) => item.templateId === 'line-puppy')
+        .claimed,
+      true,
+    );
   });
 
   await t.test('发布、领取、提交和验收都通知正确的人，重复领取/审核不重复入队', async () => {

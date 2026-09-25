@@ -1276,6 +1276,13 @@ export default function App() {
                           'PATCH',
                         )
                       }
+                      onClaim={(emailTheme) =>
+                        perform(
+                          `/mail/templates/${encodeURIComponent(emailTheme)}/claim`,
+                          {},
+                          '邮件模板已领取，之后的提醒会使用它',
+                        )
+                      }
                     />
                   </div>
                 </details>

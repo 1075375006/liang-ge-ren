@@ -103,10 +103,11 @@ Task 字段包括 `id,title,description,reward,mode,status,creatorId,assignedTo,
 
 ## 通知、偏好与运行状态
 
-- `PATCH /settings {notifyEmail?,emailTheme?}` 至少一项；开启业务邮件须已验证邮箱。主题枚举 `strawberry,cream,mint,sky,lavender,night`。
+- `PATCH /settings {notifyEmail?,emailTheme?}` 至少一项；开启业务邮件须已验证邮箱。主题枚举 `strawberry,cream,mint,sky,lavender,night,line-puppy,lulu,nailong,yibubu,tom-jerry`。后五款主题按空间共同完成连续天数逐步解锁（2、7、14、21、30 天）。
 - `POST /notifications/read {}` 标记本人全部通知已读。
 - `GET /mail/status` → `{configured,counts:{pending,sent,failed}}`，统计本人当前保留的邮件队列；`POST /mail/retry {}` → `{ok,retried}`，重试本人失败邮件。
-- `GET /mail/templates` → `{templates:[{id,name,description,emoji,accent,background,html}]}`，要求登录；固定示例预览，不发送邮件，前端使用无权限 sandbox iframe。
+- `GET /mail/templates` → `{templates:[{id,name,description,emoji,accent,background,unlockDays,html}]}`，要求登录；固定示例预览，不发送邮件，前端使用无权限 sandbox iframe。基础主题 `unlockDays=0`，线条小狗、噜噜、奶龙、一二布布和猫鼠追光分别需要连续 2、7、14、21、30 天。
+- `GET /mail/streak` → 当前空间双方共同完成的连续天数和主题里程碑；`POST /mail/templates/:id/claim {}` 在达到对应天数后领取主题并自动应用到后续邮件。连续天数按北京时间计算，每个自然日要求双方各有至少一件已验收约定；已领取主题按账号永久保留。
 - `GET /health` 检查进程可响应和数据库连通，正常为 `{ok:true}`。
 - `GET /ready` 正常返回 `{ok:true,version}`；数据库可用且 worker 最近两分钟内有无错误心跳才就绪，后台不满足条件时返回 503。
 - `GET /status` 要求登录，返回 `{worker,smtpConfigured}`。

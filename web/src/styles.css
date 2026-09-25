@@ -2454,6 +2454,74 @@ main {
   padding-top: 22px;
   border-top: 1px solid var(--line);
 }
+.mail-streak-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  margin-top: 17px;
+  padding: 14px 16px;
+  border: 1px solid #f0d9de;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #fff8f6 0%, #fff2f5 100%);
+  overflow: hidden;
+}
+.mail-streak-icon {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  border-radius: 13px;
+  color: #c3546b;
+  background: #ffe0e5;
+}
+.mail-streak-copy {
+  min-width: 0;
+  flex: 1;
+}
+.mail-streak-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+.mail-streak-heading strong {
+  color: #774f5a;
+  font-size: 13px;
+  font-weight: 650;
+}
+.mail-streak-heading small {
+  color: #ad8791;
+  font-size: 10px;
+}
+.mail-streak-copy p {
+  margin: 3px 0 8px;
+  color: #96747d;
+  font-size: 11px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.mail-streak-progress {
+  height: 6px;
+  overflow: hidden;
+  border-radius: 99px;
+  background: #f4dde2;
+}
+.mail-streak-progress span {
+  display: block;
+  height: 100%;
+  min-width: 5px;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #e29b9d, #bd5e77);
+  transition: width 0.35s ease;
+}
+.mail-streak-sparkle {
+  align-self: flex-start;
+  flex-shrink: 0;
+  color: #e1a3ac;
+}
 .mail-template-picker > .section-heading {
   padding: 0;
 }
@@ -2477,6 +2545,15 @@ main {
   transition:
     border-color 0.15s,
     box-shadow 0.15s;
+}
+.mail-template-option.is-locked {
+  cursor: not-allowed;
+  opacity: 0.65;
+  filter: saturate(0.78);
+  background: #faf9f7;
+}
+.mail-template-option.is-locked .mail-template-swatch {
+  filter: grayscale(0.5);
 }
 .mail-template-option.is-selected {
   border-color: var(--mail-template-accent, var(--rose));
@@ -2587,6 +2664,46 @@ main {
 }
 .mail-template-feedback > p {
   flex: 1 1 150px;
+}
+.mail-template-claims {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid #e6dfcb;
+  border-radius: 12px;
+  background: #fffcf3;
+}
+.mail-template-claims > div:first-child {
+  min-width: 0;
+}
+.mail-template-claims strong,
+.mail-template-claims span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.mail-template-claims strong {
+  color: #806944;
+  font-size: 12px;
+  font-weight: 600;
+}
+.mail-template-claims span {
+  margin-top: 3px;
+  color: #a79372;
+  font-size: 10px;
+}
+.mail-template-claim-list {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 7px;
+}
+.mail-template-claim-list .button {
+  margin: 0;
+  white-space: nowrap;
 }
 .wide-panel {
   grid-column: 1/-1;
@@ -5937,6 +6054,25 @@ main {
   }
   .compact-app .schedule-row {
     gap: 10px;
+  }
+  .compact-app .mail-streak-card {
+    align-items: flex-start;
+    padding: 13px;
+  }
+  .compact-app .mail-streak-icon {
+    width: 34px;
+    height: 34px;
+  }
+  .compact-app .mail-template-claims {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .compact-app .mail-template-claim-list {
+    justify-content: flex-start;
+    width: 100%;
+  }
+  .compact-app .mail-template-claim-list .button {
+    flex: 1 1 auto;
   }
   .compact-app .modal-backdrop {
     align-items: flex-end;

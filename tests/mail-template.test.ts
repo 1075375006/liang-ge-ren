@@ -29,10 +29,22 @@ const kinds = [
   'GENERAL',
 ];
 
-test('六款主题及全部通知种类都保留完整业务内容和可读的操作按钮', () => {
+test('全部邮件主题及通知种类都保留完整业务内容和可读的操作按钮', () => {
   assert.deepEqual(
     EMAIL_THEMES.map((theme) => theme.id),
-    ['strawberry', 'cream', 'mint', 'sky', 'lavender', 'night'],
+    [
+      'strawberry',
+      'cream',
+      'mint',
+      'sky',
+      'lavender',
+      'night',
+      'line-puppy',
+      'lulu',
+      'nailong',
+      'yibubu',
+      'tom-jerry',
+    ],
   );
   const previews = new Set<string>();
   for (const theme of EMAIL_THEMES) {
@@ -53,7 +65,11 @@ test('六款主题及全部通知种类都保留完整业务内容和可读的�
     }
     previews.add(buildMailPreview(theme.id));
   }
-  assert.equal(previews.size, 6, 'each theme must produce its own visual styling');
+  assert.equal(
+    previews.size,
+    EMAIL_THEMES.length,
+    'each theme must produce its own visual styling',
+  );
 });
 
 test('主题仅改变样式，安全动作链接及纯文字内容保持一致', () => {

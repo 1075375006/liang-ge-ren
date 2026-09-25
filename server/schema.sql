@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS users (
   password_hash text,
   email_verified boolean NOT NULL DEFAULT false,
   notify_email boolean NOT NULL DEFAULT false,
-  email_theme text NOT NULL DEFAULT 'strawberry' CHECK (email_theme IN ('strawberry','cream','mint','sky','lavender','night')),
+  email_theme text NOT NULL DEFAULT 'strawberry' CHECK (email_theme IN ('strawberry','cream','mint','sky','lavender','night','line-puppy','lulu','nailong','yibubu','tom-jerry')),
   created_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE TABLE IF NOT EXISTS sessions (
@@ -205,7 +205,7 @@ CREATE TABLE IF NOT EXISTS worker_heartbeat (
 ALTER TABLE email_outbox ADD COLUMN IF NOT EXISTS email_token_id uuid REFERENCES email_tokens(id);
 ALTER TABLE users ALTER COLUMN email DROP NOT NULL;
 ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL;
-ALTER TABLE users ADD COLUMN IF NOT EXISTS email_theme text NOT NULL DEFAULT 'strawberry' CHECK (email_theme IN ('strawberry','cream','mint','sky','lavender','night'));
+ALTER TABLE users ADD COLUMN IF NOT EXISTS email_theme text NOT NULL DEFAULT 'strawberry' CHECK (email_theme IN ('strawberry','cream','mint','sky','lavender','night','line-puppy','lulu','nailong','yibubu','tom-jerry'));
 -- Early local databases capped stored stock as well as manual input. Refunds must
 -- still succeed after a seller replenishes stock to the manual-input maximum.
 DO $$
