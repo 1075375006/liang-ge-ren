@@ -167,6 +167,6 @@ cp "$ENV_FILE" "$STATE_DIR/last-success.env"
   docker image inspect --format 'image_id={{.Id}}' "$candidate"
   compose images --format json
 } >>"$STATE_DIR/releases.log"
-info "部署完成：应用监听 ${bind_address}:${app_port}"
+info "部署完成：应用端口 ${app_port} 已发布到宿主机所有接口"
 info '数据库、后台、积分对账和本机就绪检查通过；请确认你的反向代理已转发到该端口。'
 info "每日备份保留 14 天，位置：$(config_value BACKUP_DIR)。请同步到另一台机器。"

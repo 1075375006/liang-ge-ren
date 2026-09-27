@@ -43,7 +43,13 @@ export DEPLOY_STATE_DIR="$TEST_DIR/state"
 export DEPLOY_ENV_FILE="$DEPLOY_STATE_DIR/production.env"
 mkdir -p "$DEPLOY_STATE_DIR"
 assert() { "$@" || { echo "FAIL: $*" >&2; exit 1; }; }
-run_deploy() { bash "$ROOT/scripts/deploy.sh" >"$TEST_DIR/output.log" 2>&1; }
+run_deploy() {
+  if bash "$ROOT/scripts/deploy.sh" >"$TEST_DIR/output.log" 2>&1; then
+    return 0
+  fi
+  cat "$TEST_DIR/output.log" >&2
+  return 1
+}
 
 # --init is a local file operation. It must not inspect Docker or open any public URL.
 : >"$TEST_COMMAND_LOG"
